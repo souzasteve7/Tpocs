@@ -6,13 +6,13 @@ import {
   Button,
   Typography,
   Box,
-  Alert,
   Link,
   CircularProgress,
 } from '@mui/material';
 import { Flight } from '@mui/icons-material';
 import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { AuthError } from '../../components/ErrorDisplay';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -78,9 +78,10 @@ const Login = () => {
           </Typography>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
+            <AuthError 
+              error={error}
+              onClose={() => setError('')}
+            />
           )}
 
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>

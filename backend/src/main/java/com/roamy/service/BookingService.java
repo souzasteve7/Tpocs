@@ -23,6 +23,7 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final RoomRepository roomRepository;
+    private final HotelRepository hotelRepository;
     
     public BookingResponseDTO createHotelBooking(BookingRequestDTO request, String userEmail) {
         log.info("Creating hotel booking for user: {}", userEmail);
@@ -33,11 +34,22 @@ public class BookingService {
         
         // Look for existing hotel or create new one from request data
         Hotel hotel = null;
-        // TODO: Implement hotel lookup logic when HotelRepository is available
-        // if (request.getHotelId() != null) {
-        //     hotel = hotelRepository.findById(request.getHotelId()).orElse(null);
-        // }
         
+        // Check if hotel ID is provided and try to find existing hotel
+        if (request.getHotelId() != null) {
+            hotel = hotelRepository.findById(request.getHotelId()).orElse(null);
+            log.info("Looked up hotel by ID: {} - Found: {}", request.getHotelId(), hotel != null);
+        }
+        
+        // If no hotel found by ID but hotel name provided, check if hotel exists by name
+        if (hotel == null && request.getHotelName() != null && !request.getHotelName().trim().isEmpty()) {
+            List<Hotel> existingHotels = hotelRepository.findByNameContainingIgnoreCase(request.getHotelName());
+            if (!existingHotels.isEmpty()) {
+                hotel = existingHotels.get(0); // Use the first matching hotel
+                log.info("Found existing hotel by name: {}", hotel.getName());
+            }
+        }
+
         // Create or update hotel from request payload
         if (hotel == null && request.getHotelName() != null) {
             log.info("Creating new hotel from request data: {}", request.getHotelName());
@@ -71,14 +83,17 @@ public class BookingService {
                 hotel.getImageUrls().add(request.getHotelImageUrl());
             }
             
-            // TODO: Save hotel when HotelRepository is available
-            // hotel = hotelRepository.save(hotel);
-            log.info("Created hotel entity (not persisted): {} for booking", hotel.getName());
-        } else if (hotel != null) {
-            log.info("Found existing hotel: {}", hotel.getName());
-        } else {
-            log.warn("No hotel information provided or found");
+            // IMPORTANT: Save the hotel to the database BEFORE using it in booking
+            hotel = hotelRepository.save(hotel);
+            log.info("Created and saved new hotel: {} with ID: {}", hotel.getName(), hotel.getId());
         }
+        
+        // Ensure we have a hotel entity
+        if (hotel == null) {
+            throw new RuntimeException("Unable to create or find hotel: " + request.getHotelName());
+        }
+        
+        log.info("Using hotel for booking: {} with ID: {}", hotel.getName(), hotel.getId());
         
         // Calculate total amount - use request amount if provided
         long numberOfNights = ChronoUnit.DAYS.between(request.getCheckInDate(), request.getCheckOutDate());

@@ -55,6 +55,54 @@ INSERT INTO destinations (id, name, city, country, country_code, latitude, longi
 (44, 'Sharjah', 'Sharjah', 'United Arab Emirates', 'AE', 25.3463, 55.4209, 'Cultural capital of UAE with museums, heritage areas, and art galleries.', 'Asia/Dubai', 'Desert', 'November to March', 1500.00, 3000.00, 7500.00, 4.2, 12400, 82, true),
 (45, 'Muscat', 'Muscat', 'Oman', 'OM', 23.5859, 58.4059, 'Capital with Sultan Qaboos Grand Mosque, souks, and mountain landscapes.', 'Asia/Muscat', 'Desert', 'October to April', 1800.00, 3600.00, 9000.00, 4.3, 11200, 85, true);
 
+-- Destination image updates (Wikipedia)
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/La_Tour_Eiffel_vue_de_la_Tour_Saint-Jacques%2C_Paris_ao%C3%BBt_2014_%282%29.jpg/330px-La_Tour_Eiffel_vue_de_la_Tour_Saint-Jacques%2C_Paris_ao%C3%BBt_2014_%282%29.jpg' WHERE id = 1; -- Paris
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Skyscrapers_of_Shinjuku_2009_January.jpg/330px-Skyscrapers_of_Shinjuku_2009_January.jpg' WHERE id = 2; -- Tokyo
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/View_of_Empire_State_Building_from_Rockefeller_Center_New_York_City_dllu_%28cropped%29.jpg/330px-View_of_Empire_State_Building_from_Rockefeller_Center_New_York_City_dllu_%28cropped%29.jpg' WHERE id = 3; -- New York
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/London_Skyline_%28125508655%29.jpeg/330px-London_Skyline_%28125508655%29.jpeg' WHERE id = 4; -- London
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/Aerial_view_of_Barcelona%2C_Spain_%2851227309370%29_edited.jpg/330px-Aerial_view_of_Barcelona%2C_Spain_%2851227309370%29_edited.jpg' WHERE id = 5; -- Barcelona
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Trevi_Fountain%2C_Rome%2C_Italy_2_-_May_2007.jpg/330px-Trevi_Fountain%2C_Rome%2C_Italy_2_-_May_2007.jpg' WHERE id = 6; -- Rome
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Sydney_Opera_House_and_Harbour_Bridge_Dusk_%282%29_2019-06-21.jpg/330px-Sydney_Opera_House_and_Harbour_Bridge_Dusk_%282%29_2019-06-21.jpg' WHERE id = 7; -- Sydney
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Historical_peninsula_and_modern_skyline_of_Istanbul.jpg/330px-Historical_peninsula_and_modern_skyline_of_Istanbul.jpg' WHERE id = 8; -- Istanbul
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Bangkok_Montage_2024_2.jpg/330px-Bangkok_Montage_2024_2.jpg' WHERE id = 9; -- Bangkok
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/48/Flag_of_Singapore.svg/330px-Flag_of_Singapore.svg.png' WHERE id = 10; -- Singapore
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/en/thumb/c/c7/Burj_Khalifa_2021.jpg/330px-Burj_Khalifa_2021.jpg' WHERE id = 11; -- Dubai
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Bukit_Bintang_junction_in_2024_2.jpg/330px-Bukit_Bintang_junction_in_2024_2.jpg' WHERE id = 12; -- Kuala Lumpur
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Colombo_skyline_2024.jpg/330px-Colombo_skyline_2024.jpg' WHERE id = 13; -- Colombo
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Kathmandu-Durbar_Square-06-Mahavishnu-Kuh-Vishnu-Pratapamalla-Jagannath-2007-gje.jpg/330px-Kathmandu-Durbar_Square-06-Mahavishnu-Kuh-Vishnu-Pratapamalla-Jagannath-2007-gje.jpg' WHERE id = 14; -- Kathmandu
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Ho_Chi_Minh_City_panorama_2019_%28cropped2%29.jpg/330px-Ho_Chi_Minh_City_panorama_2019_%28cropped2%29.jpg' WHERE id = 15; -- Ho Chi Minh City
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Bali_in_Indonesia_%28special_marker%29.svg/330px-Bali_in_Indonesia_%28special_marker%29.svg.png' WHERE id = 16; -- Bali
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/Flag_of_Maldives.svg/330px-Flag_of_Maldives.svg.png' WHERE id = 17; -- Maldives
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/%EC%A4%91%ED%99%94%EC%A0%84%EC%9D%98_%EB%82%AE.jpg/330px-%EC%A4%91%ED%99%94%EC%A0%84%EC%9D%98_%EB%82%AE.jpg' WHERE id = 18; -- Seoul
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Flag_of_Bhutan.svg/330px-Flag_of_Bhutan.svg.png' WHERE id = 19; -- Bhutan
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/The_Pearl_Marina_in_Nov_2013.jpg/330px-The_Pearl_Marina_in_Nov_2013.jpg' WHERE id = 20; -- Doha
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/%E0%A6%93%E0%A6%B0%E0%A6%B2%E0%A6%BF%E0%A6%B0_%E0%A6%97%E0%A6%97%E0%A6%A8%E0%A6%B0%E0%A7%88%E0%A6%96%E0%A6%BF%E0%A6%95_%E0%A6%A6%E0%A7%83%E0%A6%B6%E0%A7%8D%E0%A6%AF.jpg/330px-%E0%A6%93%E0%A6%B0%E0%A6%B2%E0%A6%BF%E0%A6%B0_%E0%A6%97%E0%A6%97%E0%A6%A8%E0%A6%B0%E0%A7%88%E0%A6%96%E0%A6%BF%E0%A6%95_%E0%A6%A6%E0%A7%83%E0%A6%B6%E0%A7%8D%E0%A6%AF.jpg' WHERE id = 21; -- Mumbai
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Jama_Masjid_2011.jpg/330px-Jama_Masjid_2011.jpg' WHERE id = 22; -- Delhi
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/BeachFun.jpg/330px-BeachFun.jpg' WHERE id = 23; -- Goa
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Boathouse_%287063399547%29.jpg/330px-Boathouse_%287063399547%29.jpg' WHERE id = 24; -- Kerala
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/Thar_Khuri.jpg/330px-Thar_Khuri.jpg' WHERE id = 25; -- Rajasthan
+UPDATE destinations SET image_url = 'https://en.wikipedia.org/wiki/Special:FilePath/Pahalgam_Valley.jpg' WHERE id = 26; -- Kashmir
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Road_Padum_Zanskar_Range_Jun24_A7CR_00818.jpg/330px-Road_Padum_Zanskar_Range_Jun24_A7CR_00818.jpg' WHERE id = 27; -- Ladakh
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Kinnaur_Kailash.jpg/330px-Kinnaur_Kailash.jpg' WHERE id = 28; -- Himachal Pradesh
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Mamallapuram_view.jpg/330px-Mamallapuram_view.jpg' WHERE id = 29; -- Tamil Nadu
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Hampi_virupaksha_temple.jpg/330px-Hampi_virupaksha_temple.jpg' WHERE id = 30; -- Karnataka
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Auli%2C_India.jpg/330px-Auli%2C_India.jpg' WHERE id = 31; -- Uttarakhand
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Tirumala_090615.jpg/330px-Tirumala_090615.jpg' WHERE id = 32; -- Andhra Pradesh
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Howrah_bridge_betwixt_Lights.jpg/330px-Howrah_bridge_betwixt_Lights.jpg' WHERE id = 33; -- West Bengal
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Rani_ki_vav_02.jpg/330px-Rani_ki_vav_02.jpg' WHERE id = 34; -- Gujarat
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Faisal_Mosque%2C_Islamabad_III.jpg/330px-Faisal_Mosque%2C_Islamabad_III.jpg' WHERE id = 35; -- Islamabad
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Lahore_Fort_view_from_Baradari.jpg/330px-Lahore_Fort_view_from_Baradari.jpg' WHERE id = 36; -- Lahore
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/Dolmen_Towers_Karachi.jpg/330px-Dolmen_Towers_Karachi.jpg' WHERE id = 37; -- Karachi
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/SL_Kandy_asv2020-01_img04_Queens_Hotel.jpg/330px-SL_Kandy_asv2020-01_img04_Queens_Hotel.jpg' WHERE id = 38; -- Kandy
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Galle_Fort.jpg/330px-Galle_Fort.jpg' WHERE id = 39; -- Galle
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Nuwara-e.jpg/330px-Nuwara-e.jpg' WHERE id = 40; -- Nuwara Eliya
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Pokhara_Valley.jpg/330px-Pokhara_Valley.jpg' WHERE id = 41; -- Pokhara
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/Chitwan_swamp.jpg/330px-Chitwan_swamp.jpg' WHERE id = 42; -- Chitwan
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Abu_dhabi_skylines_2014.jpg/330px-Abu_dhabi_skylines_2014.jpg' WHERE id = 43; -- Abu Dhabi
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Al_Qasba.jpg/330px-Al_Qasba.jpg' WHERE id = 44; -- Sharjah
+UPDATE destinations SET image_url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Al_Alam_Palace.jpg/330px-Al_Alam_Palace.jpg' WHERE id = 45; -- Muscat
+-- End destination image updates
+
 -- Insert destination interests
 INSERT INTO destination_interests (destination_id, interest) VALUES
 (1, 'CULTURE'), (1, 'ART'), (1, 'FOOD'), (1, 'ROMANTIC'), (1, 'HISTORY'),
@@ -225,37 +273,37 @@ INSERT INTO hotel_images (hotel_id, image_url) VALUES
 (7, 'https://images.unsplash.com/photo-1571896349842-33c89424de2d'),
 (8, 'https://images.unsplash.com/photo-1582719508461-905c673771fd'),
 -- Indian Hotels Images
-(19, 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6'), -- Taj Mahal Palace Mumbai
+(19, 'https://lh3.googleusercontent.com/p/AF1QipMK1ySAtAw-z_kv8wBwEXvLg9wMPbv9dV4SdB4O=s1360-w1360-h1020-rw'), -- Taj Mahal Palace Mumbai
 (20, 'https://images.unsplash.com/photo-1571896349842-33c89424de2d'), -- Hotel Mumbai Central
-(21, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Leela Palace Delhi
+(21, 'https://images.unsplash.com/photo-1549294413-26f195200c16'), -- Leela Palace Delhi
 (22, 'https://images.unsplash.com/photo-1566073771259-6a8506099945'), -- Delhi Budget
 (23, 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4'), -- Taj Exotica Goa  
 (24, 'https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9'), -- Goa Beach Hostel
-(25, 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb'), -- Kumarakom Lake Resort
+(25, 'https://lh3.googleusercontent.com/p/AF1QipNtlzOi08P33OONjRmvFEMj842i4OGczcYJ6Mm6=s1360-w1360-h1020-rw'), -- Kumarakom Lake Resort
 (26, 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa'), -- Kerala Backwater Stay
 (27, 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6'), -- Umaid Bhawan Palace
 (28, 'https://images.unsplash.com/photo-1582719508461-905c673771fd'), -- Rajasthan Heritage
 (29, 'https://images.unsplash.com/photo-1571896349842-33c89424de2d'), -- Vivanta Dal View
-(30, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Kashmir Houseboat
+(30, 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e'), -- Kashmir Houseboat
 (31, 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4'), -- Grand Dragon Ladakh
 (32, 'https://images.unsplash.com/photo-1566073771259-6a8506099945'), -- Ladakh Guest House
 -- Additional hotel images
 (41, 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6'), -- Oberoi Mumbai
 (42, 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb'), -- JW Marriott Mumbai
 (43, 'https://images.unsplash.com/photo-1571896349842-33c89424de2d'), -- Suba Palace
-(44, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Imperial Delhi
+(44, 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa'), -- Imperial Delhi
 (45, 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4'), -- ITC Maurya
 (46, 'https://images.unsplash.com/photo-1566073771259-6a8506099945'), -- Tara Palace
 (47, 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6'), -- Leela Goa
 (48, 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb'), -- Grand Hyatt Goa
 (49, 'https://images.unsplash.com/photo-1571896349842-33c89424de2d'), -- Casa Anjuna
-(50, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Taj Malabar
+(50, 'https://images.unsplash.com/photo-1445019980597-93fa8acb246c'), -- Taj Malabar
 (51, 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4'), -- Spice Village
 (52, 'https://images.unsplash.com/photo-1566073771259-6a8506099945'), -- Backwater Ripples
 (53, 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6'), -- Rambagh Palace
 (54, 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb'), -- Fairmont Jaipur
 (55, 'https://images.unsplash.com/photo-1571896349842-33c89424de2d'), -- Alsisar Haveli
-(56, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- LaLiT Grand Palace
+(56, 'https://images.unsplash.com/photo-1455587734955-081b22074882'), -- LaLiT Grand Palace
 (57, 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4'), -- Fortune Heevan
 (58, 'https://images.unsplash.com/photo-1566073771259-6a8506099945'), -- New Jackie Houseboat
 (59, 'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6'), -- Siam Bangkok
@@ -380,45 +428,50 @@ INSERT INTO attraction_interests (attraction_id, interest) VALUES
 
 -- Insert attraction images with high-quality Unsplash URLs
 INSERT INTO attraction_images (attraction_id, image_url) VALUES
-(1, 'https://images.unsplash.com/photo-1511739001486-6bfe10ce785f'), -- Eiffel Tower
-(2, 'https://images.unsplash.com/photo-1499856871958-5b9627545d1a'), -- Louvre Museum
-(3, 'https://images.unsplash.com/photo-1480796927426-f609979314bd'), -- Senso-ji Temple
-(4, 'https://images.unsplash.com/photo-1513407030348-c983a97b98d8'), -- Tokyo Skytree
-(5, 'https://images.unsplash.com/photo-1564221710304-0b37c8b9d729'), -- Central Park
-(6, 'https://images.unsplash.com/photo-1569098644584-210bcd375b59'), -- Statue of Liberty
-(7, 'https://images.unsplash.com/photo-1555993539-1732b0258235'), -- British Museum
-(8, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Tower of London
--- Indian Attractions with specific images
-(9, 'https://images.unsplash.com/photo-1595658658481-d53d3f999875'), -- Gateway of India Mumbai
-(10, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Elephanta Caves
-(11, 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f'), -- Marine Drive Mumbai
-(12, 'https://images.unsplash.com/photo-1597149958131-005d401d7bf7'), -- Red Fort Delhi
-(13, 'https://images.unsplash.com/photo-1587474260584-136574528ed5'), -- India Gate Delhi
-(14, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Qutub Minar
-(15, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Basilica Bom Jesus
-(16, 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4'), -- Dudhsagar Falls
-(17, 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2'), -- Baga Beach Goa
-(18, 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944'), -- Kerala Backwaters
-(19, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Munnar Tea Gardens
-(20, 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944'), -- Chinese Fishing Nets
-(21, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Hawa Mahal Jaipur
-(22, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- City Palace Jaipur
-(23, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Amber Fort
-(24, 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4'), -- Dal Lake Kashmir
-(25, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Mughal Gardens
-(26, 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4'), -- Gulmarg
-(27, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Leh Palace
-(28, 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4'), -- Pangong Lake
-(29, 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4'), -- Nubra Valley
-(30, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Shimla Mall Road
-(31, 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4'), -- Rohtang Pass
--- Neighboring Countries
-(32, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Faisal Mosque
-(33, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Badshahi Mosque
-(34, 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2'), -- Clifton Beach
-(35, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Temple of Tooth
-(36, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Galle Fort
-(37, 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4'), -- Horton Plains
-(38, 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4'), -- Phewa Lake
-(39, 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4'), -- Sheikh Zayed Mosque
-(40, 'https://images.unsplash.com/photo-1555993539-1732b0258235'); -- Louvre Abu Dhabi
+(1, 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg/330px-Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg'), -- Eiffel Tower
+(2, 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Louvre_Museum_Wikimedia_Commons.jpg/330px-Louvre_Museum_Wikimedia_Commons.jpg'), -- Louvre
+(3, 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Sensoji_2023.jpg/330px-Sensoji_2023.jpg'), -- Sensō-ji
+(4, 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Tokyo_Skytree_2014_%E2%85%A2.jpg/330px-Tokyo_Skytree_2014_%E2%85%A2.jpg'), -- Tokyo Skytree
+(5, 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Global_Citizen_Festival_Central_Park_New_York_City_from_NYonAir_%2815351915006%29.jpg/330px-Global_Citizen_Festival_Central_Park_New_York_City_from_NYonAir_%2815351915006%29.jpg'), -- Central Park
+(6, 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Front_view_of_Statue_of_Liberty_%28cropped%29.jpg/330px-Front_view_of_Statue_of_Liberty_%28cropped%29.jpg'), -- Statue of Liberty
+(7, 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/British_Museum_%28aerial%29.jpg/330px-British_Museum_%28aerial%29.jpg'), -- British Museum
+(8, 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Tower_of_London_from_the_Shard_%288515883950%29.jpg/330px-Tower_of_London_from_the_Shard_%288515883950%29.jpg'), -- Tower of London
+(9, 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Mumbai_03-2016_30_Gateway_of_India.jpg/330px-Mumbai_03-2016_30_Gateway_of_India.jpg'), -- Gateway of India
+(10, 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Elephanta_Caves_Trimurti.jpg/330px-Elephanta_Caves_Trimurti.jpg'), -- Elephanta Caves
+(11, 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Mumbai_03-2016_27_skyline_at_Marine_Drive.jpg/330px-Mumbai_03-2016_27_skyline_at_Marine_Drive.jpg'), -- Marine Drive, Mumbai
+(12, 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Delhi_fort.jpg/330px-Delhi_fort.jpg'), -- Red Fort
+(13, 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/India_Gate_in_New_Delhi_03-2016.jpg/330px-India_Gate_in_New_Delhi_03-2016.jpg'), -- India Gate
+(14, 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Qutb_Minar_2022.jpg/330px-Qutb_Minar_2022.jpg'), -- Qutb Minar
+(15, 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Front_Elevation_of_Basilica_of_Bom_Jesus.jpg/330px-Front_Elevation_of_Basilica_of_Bom_Jesus.jpg'), -- Basilica of Bom Jesus
+(16, 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Doodhsagar_Fall.jpg/330px-Doodhsagar_Fall.jpg'), -- Dudhsagar Falls
+(17, 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Baga_Beach%2C_Calangute%2C_Goa.jpg/330px-Baga_Beach%2C_Calangute%2C_Goa.jpg'), -- Baga, Goa
+(18, 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/House_Boat_DSW.jpg/330px-House_Boat_DSW.jpg'), -- Kerala backwaters
+(19, 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Munnar_Overview.jpg/330px-Munnar_Overview.jpg'), -- Munnar
+(20, 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Chinese_Fishing_Net_Raising_Birds_Sunrise_Ashtamudi_Kollam_Mar22_A7C_01784.jpg/330px-Chinese_Fishing_Net_Raising_Birds_Sunrise_Ashtamudi_Kollam_Mar22_A7C_01784.jpg'), -- Chinese fishing nets
+(21, 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/East_facade_Hawa_Mahal_Jaipur_from_ground_level_%28July_2022%29_-_img_01.jpg/330px-East_facade_Hawa_Mahal_Jaipur_from_ground_level_%28July_2022%29_-_img_01.jpg'), -- Hawa Mahal
+(22, 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Chandra_Mahal%2C_City_Palace%2C_Jaipur%2C_20191218_0951_9043.jpg/330px-Chandra_Mahal%2C_City_Palace%2C_Jaipur%2C_20191218_0951_9043.jpg'), -- City Palace, Jaipur
+(23, 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/20191219_Fort_Amber%2C_Amer%2C_Jaipur_0955_9481.jpg/330px-20191219_Fort_Amber%2C_Amer%2C_Jaipur_0955_9481.jpg'), -- Amber Fort
+(24, 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Dal_Lake_Hazratbal_Srinagar.jpg/330px-Dal_Lake_Hazratbal_Srinagar.jpg'), -- Dal Lake
+(25, 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Shalimar_Bagh_1.jpg/330px-Shalimar_Bagh_1.jpg'), -- Shalimar Bagh, Srinagar
+(26, 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Ancient_Temple%2C_Gulmarg.jpg/330px-Ancient_Temple%2C_Gulmarg.jpg'), -- Gulmarg
+(27, 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Leh_Palace_2011.jpg/330px-Leh_Palace_2011.jpg'), -- Leh Palace
+(28, 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/ISS054-E-7809_-_View_of_Earth_%28cropped%29.jpg/330px-ISS054-E-7809_-_View_of_Earth_%28cropped%29.jpg'), -- Pangong Tso
+(29, 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/5_Nubra_valley.jpg/330px-5_Nubra_valley.jpg'), -- Nubra Valley
+(30, 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Landscape_of_Shimla_%2C_Himachal_Pradesh.jpg/330px-Landscape_of_Shimla_%2C_Himachal_Pradesh.jpg'), -- Shimla
+(31, 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Kullu_Valley_from_Rohtang_Pass%2C_India.jpg/330px-Kullu_Valley_from_Rohtang_Pass%2C_India.jpg'), -- Rohtang Pass
+(32, 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Ali_Mujtaba_WLM2017_FAISAL_MOSQUE_019.jpg/330px-Ali_Mujtaba_WLM2017_FAISAL_MOSQUE_019.jpg'), -- Faisal Mosque
+(33, 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Badshahi_Mosque_front_picture.jpg/330px-Badshahi_Mosque_front_picture.jpg'), -- Badshahi Mosque
+(34, 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/PK_Karachi_asv2020-02_img06_Bagh_Ibne_Qasim.jpg/330px-PK_Karachi_asv2020-02_img06_Bagh_Ibne_Qasim.jpg'), -- Clifton, Karachi
+(35, 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/SL_Kandy_asv2020-01_img33_Sacred_Tooth_Temple.jpg/330px-SL_Kandy_asv2020-01_img33_Sacred_Tooth_Temple.jpg'), -- Temple of the Tooth
+(36, 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Galle_Fort.jpg/330px-Galle_Fort.jpg'), -- Galle Fort
+(37, 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Srilankamountainforest.jpg/330px-Srilankamountainforest.jpg'), -- Horton Plains National Park
+(38, 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Phewa_lake%2C_Pokhara.jpg/330px-Phewa_lake%2C_Pokhara.jpg'), -- Phewa Lake
+(39, 'https://upload.wikimedia.org/wikipedia/en/thumb/7/7d/Sheikh_Zayed_Mosque_view.jpg/330px-Sheikh_Zayed_Mosque_view.jpg'), -- Sheikh Zayed Grand Mosque
+(40, 'https://upload.wikimedia.org/wikipedia/en/thumb/5/55/LouvreAD_exterior.jpg/330px-LouvreAD_exterior.jpg'); -- Louvre Abu Dhabi
+
+-- Insert sample users
+INSERT INTO users (id, email, password, first_name, last_name, phone_number, role, enabled, verified, preferred_currency, created_at, updated_at) VALUES
+(1, 'steve@gmail.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.', 'Steve', 'User', '8210897903', 'USER', true, true, 'INR', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+(2, 'john.doe@gmail.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.', 'John', 'Doe', '9876543210', 'USER', true, true, 'USD', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+(3, 'sarah.wilson@gmail.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.', 'Sarah', 'Wilson', '8765432109', 'USER', true, true, 'EUR', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+(4, 'admin@roamy.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.', 'Admin', 'User', '7654321098', 'ADMIN', true, true, 'USD', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);

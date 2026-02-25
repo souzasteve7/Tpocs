@@ -44,19 +44,21 @@ export const CurrencyProvider = ({ children }) => {
   };
 
   const convertCurrency = (amount, fromCurrency = 'INR', toCurrency = selectedCurrency) => {
-    if (!amount) return null;
+    if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return null;
+    const numericAmount = Number(amount);
     // Convert from source currency to INR first (if not already INR)
-    const amountInINR = fromCurrency === 'INR' ? amount : amount / exchangeRates[fromCurrency];
+    const amountInINR = fromCurrency === 'INR' ? numericAmount : numericAmount / exchangeRates[fromCurrency];
     // Convert from INR to target currency
     const convertedAmount = toCurrency === 'INR' ? amountInINR : amountInINR * exchangeRates[toCurrency];
     return Math.round(convertedAmount * 100) / 100;
   };
 
   const formatCurrency = (amount, currency = selectedCurrency) => {
-    if (!amount) return 'N/A';
+    if (amount === null || amount === undefined || Number.isNaN(Number(amount))) return 'N/A';
+    const numericAmount = Number(amount);
     const currencyInfo = currencyOptions.find(c => c.code === currency);
     const symbol = currencyInfo?.symbol || currency;
-    return `${symbol}${amount.toLocaleString()}`;
+    return `${symbol}${numericAmount.toLocaleString()}`;
   };
 
   const updateCurrency = (newCurrency) => {

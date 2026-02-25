@@ -143,7 +143,7 @@ const Home = () => {
         position: 'relative'
       }}
     >
-    <Container maxWidth="lg" sx={{ py: 2 }}>
+    <Container maxWidth="lg" sx={{ py: 1 }}>
       {/* API Status Indicator */}
       {apiStatus && (
         <Box sx={{ mb: 2 }}>
@@ -151,16 +151,16 @@ const Home = () => {
             elevation={2} 
             sx={{ 
               p: 2, 
-              backgroundColor: apiStatus === 'UP' ? '#e8f5e8' : '#fff3cd',
-              borderRadius: '12px',
-              border: `1px solid ${apiStatus === 'UP' ? '#4caf50' : '#ff5722'}`,
-              color: apiStatus === 'UP' ? '#2e7d32' : '#e65100'
+              backgroundColor: apiStatus === 'UP' ? '#f24805' : '#fff3cd',
+              borderRadius: '10px',
+              border: `0.5px solid ${apiStatus === 'UP' ? '#bf4203' : '#ff5722'}`,
+              color: apiStatus === 'UP' ? '#c44517' : '#c85a1f'
             }}
           >
-            <Typography variant="body2">
+            {/* <Typography variant="body2">
               🌐 Backend API: {apiStatus} {apiStatus === 'UP' ? '✅' : '❌'}
               {apiStatus === 'DOWN' && ' - Showing demo data'}
-            </Typography>
+            </Typography> */}
           </Paper>
         </Box>
       )}

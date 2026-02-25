@@ -76,6 +76,7 @@ public class TravelSuggestionResponseDTO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class SuggestedAccommodationDTO {
+        private Long id; // Hotel ID for booking
         private String name;
         private String type; // hotel, hostel, apartment, resort, guesthouse
         private String category; // budget, mid-range, luxury

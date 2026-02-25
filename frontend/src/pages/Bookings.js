@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Typography,
@@ -6,7 +6,6 @@ import {
   Box,
   Card,
   CardContent,
-  CardMedia,
   Grid,
   Chip,
   Button,
@@ -20,84 +19,85 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemIcon
+  ListItemIcon,
+  Snackbar,
+  TextField,
+  Tabs,
+  Tab
 } from '@mui/material';
 import {
   BookOnline,
   Hotel,
-  FlightTakeoff,
+  TravelExplore,
   Cancel,
-  CheckCircle,
-  Schedule,
   Person,
   Email,
   Phone
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import toast from 'react-hot-toast';
+import { useCurrency } from '../contexts/CurrencyContext';
+import { bookingAPI } from '../services/api';
 
 const Bookings = () => {
+  const { user, isAuthenticated } = useAuth();
+  const { selectedCurrency, convertCurrency, formatCurrency } = useCurrency();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [cancelDialog, setCancelDialog] = useState({ open: false, booking: null });
   const [canceling, setCanceling] = useState(false);
-  const { user } = useAuth();
-
-  const baseURL = 'http://localhost:8080/api';
+  const [cancelReason, setCancelReason] = useState('');
+  const [typeTab, setTypeTab] = useState(0);
+  const [statusTab, setStatusTab] = useState(0);
 
   // Fetch user bookings
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async () => {
+    if (!isAuthenticated) {
+      setError('Please login to view your bookings');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${baseURL}/bookings/user`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setBookings(data);
-        setError('');
-      } else if (response.status === 401) {
-        setError('Please login to view your bookings');
-      } else {
-        throw new Error('Failed to fetch bookings');
-      }
+      setError('');
+      
+      const response = await bookingAPI.getAllBookings();
+      console.log('Bookings response:', response.data);
+      
+      setBookings(response.data);
+      
     } catch (err) {
-      setError('Error loading bookings: ' + err.message);
       console.error('Error fetching bookings:', err);
+      setError(
+        err.response?.data?.message || 
+        'Failed to load bookings. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAuthenticated]);
 
   // Cancel booking
   const handleCancelBooking = async (bookingId) => {
     try {
       setCanceling(true);
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${baseURL}/bookings/${bookingId}/cancel`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        toast.success('Booking cancelled successfully');
-        fetchBookings(); // Refresh the list
-        setCancelDialog({ open: false, booking: null });
-      } else {
-        throw new Error('Failed to cancel booking');
-      }
+      
+      const response = await bookingAPI.cancelBooking(bookingId, cancelReason);
+      console.log('Cancel response:', response.data);
+      
+      setSuccessMessage('Booking cancelled successfully');
+      fetchBookings(); // Refresh the list
+      setCancelDialog({ open: false, booking: null });
+      setCancelReason('');
+      
     } catch (err) {
-      toast.error('Error cancelling booking: ' + err.message);
-      console.error('Error cancelling booking:', err);
+      console.error('Cancel booking error:', err);
+      setError(
+        err.response?.data?.message || 
+        'Failed to cancel booking. Please try again.'
+      );
     } finally {
       setCanceling(false);
     }
@@ -107,7 +107,7 @@ const Bookings = () => {
     if (user) {
       fetchBookings();
     }
-  }, [user]);
+  }, [user, fetchBookings]);
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
@@ -122,6 +122,32 @@ const Bookings = () => {
     }
   };
 
+  const isCancelledBooking = (booking) => (booking.status || '').toLowerCase() === 'cancelled';
+
+  const normalizeBookingType = (booking) => {
+    const type = (booking.type || '').toLowerCase();
+    if (type.includes('transport')) return 'transport';
+    if (type.includes('hotel')) return 'hotel';
+    return booking.transport || booking.transportType ? 'transport' : 'hotel';
+  };
+
+  const getDisplayStatus = (booking) => (isCancelledBooking(booking) ? 'Cancelled' : 'Confirmed');
+
+  const getDisplayAmount = (booking) => {
+    const rawAmount = Number(booking.totalAmount || 0);
+    const fromCurrency = booking.currency || 'INR';
+    const toCurrency = selectedCurrency || fromCurrency;
+    const convertedAmount = convertCurrency(rawAmount, fromCurrency, toCurrency);
+    return formatCurrency(convertedAmount, toCurrency);
+  };
+
+  const typeFilteredBookings = bookings.filter((booking) =>
+    typeTab === 0 ? normalizeBookingType(booking) === 'hotel' : normalizeBookingType(booking) === 'transport'
+  );
+  const confirmedBookings = typeFilteredBookings.filter((booking) => !isCancelledBooking(booking));
+  const cancelledBookings = typeFilteredBookings.filter((booking) => isCancelledBooking(booking));
+  const displayedBookings = statusTab === 0 ? confirmedBookings : cancelledBookings;
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -132,8 +158,20 @@ const Bookings = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+    <Container maxWidth="lg" sx={{ py: { xs: 2.5, md: 4 } }}>
+      {/* Success Message Snackbar */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMessage('')}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSuccessMessage('')} severity="success" sx={{ width: '100%' }}>
+          {successMessage}
+        </Alert>
+      </Snackbar>
+      
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
         <BookOnline sx={{ mr: 2, fontSize: 32, color: 'primary.main' }} />
         <Typography variant="h4" component="h1">
           My Bookings
@@ -147,7 +185,7 @@ const Bookings = () => {
       )}
 
       {loading ? (
-        <Box display="flex" justifyContent="center" py={4}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight={220}>
           <CircularProgress />
         </Box>
       ) : bookings.length === 0 ? (
@@ -157,32 +195,111 @@ const Bookings = () => {
           </Typography>
         </Paper>
       ) : (
-        <Grid container spacing={3}>
-          {bookings.map((booking) => (
+        <>
+          <Grid container spacing={3} alignItems="flex-start">
+            <Grid item xs={12} md={3}>
+              <Paper sx={{ p: 1.5, position: 'sticky', top: 16, borderRadius: 2 }}>
+                <Typography variant="subtitle2" sx={{ px: 1, pb: 1, color: 'text.secondary' }}>
+                  Booking Type
+                </Typography>
+                <Tabs
+                  value={typeTab}
+                  onChange={(_, newValue) => setTypeTab(newValue)}
+                  orientation="vertical"
+                  variant="scrollable"
+                  indicatorColor="primary"
+                  textColor="primary"
+                  sx={{
+                    minHeight: 120,
+                    '& .MuiTabs-indicator': {
+                      left: 0,
+                      width: 3,
+                      borderRadius: '0 4px 4px 0'
+                    },
+                    '& .MuiTab-root': {
+                      justifyContent: 'flex-start',
+                      alignItems: 'flex-start',
+                      textAlign: 'left',
+                      textTransform: 'none',
+                      minHeight: 48,
+                      borderRadius: 1,
+                      mb: 0.5,
+                      px: 1.25
+                    }
+                  }}
+                >
+                  <Tab icon={<Hotel />} iconPosition="start" label={`Hotels (${bookings.filter((booking) => normalizeBookingType(booking) === 'hotel').length})`} />
+                  <Tab icon={<TravelExplore />} iconPosition="start" label={`Transport (${bookings.filter((booking) => normalizeBookingType(booking) === 'transport').length})`} />
+                </Tabs>
+              </Paper>
+            </Grid>
+
+            <Grid item xs={12} md={9} sx={{ display: 'flex', flexDirection: 'column' }}>
+              <Paper sx={{ mb: 3, borderRadius: 2, flexShrink: 0 }}>
+                <Tabs
+                  value={statusTab}
+                  onChange={(_, newValue) => setStatusTab(newValue)}
+                  indicatorColor="primary"
+                  textColor="primary"
+                  variant="fullWidth"
+                  sx={{
+                    '& .MuiTab-root': {
+                      textTransform: 'none',
+                      fontWeight: 500
+                    }
+                  }}
+                >
+                  <Tab label={`Confirmed (${confirmedBookings.length})`} />
+                  <Tab label={`Cancelled (${cancelledBookings.length})`} />
+                </Tabs>
+              </Paper>
+
+              <Box sx={{ width: '100%', minHeight: { xs: 320, md: 560 } }}>
+                {displayedBookings.length === 0 ? (
+                  <Paper
+                    sx={{
+                      p: 4,
+                      textAlign: 'center',
+                      height: '100%',
+                      minHeight: { xs: 320, md: 560 },
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Typography variant="body1" color="text.secondary">
+                      {statusTab === 0
+                        ? 'No confirmed bookings for this category yet.'
+                        : 'No cancelled bookings for this category.'}
+                    </Typography>
+                  </Paper>
+                ) : (
+                  <Grid container spacing={3} alignContent="flex-start" sx={{ minHeight: { xs: 320, md: 560 } }}>
+                    {displayedBookings.map((booking) => (
             <Grid item xs={12} key={booking.id}>
-              <Card sx={{ mb: 2 }}>
+              <Card sx={{ mb: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, flexWrap: 'wrap', gap: 1.5, mb: 2 }}>
                     <Box>
                       <Typography variant="h6" gutterBottom>
                         Booking #{booking.id}
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
                         <Chip
-                          label={booking.type?.charAt(0).toUpperCase() + booking.type?.slice(1) || 'Hotel'}
+                          label={normalizeBookingType(booking) === 'hotel' ? 'Hotel' : 'Transport'}
                           color="primary"
                           size="small"
                         />
                         <Chip
-                          label={booking.status || 'Confirmed'}
-                          color={getStatusColor(booking.status)}
+                          label={getDisplayStatus(booking)}
+                          color={getStatusColor(getDisplayStatus(booking))}
                           size="small"
                         />
                       </Box>
                     </Box>
-                    <Box sx={{ textAlign: 'right' }}>
+                    <Box sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
                       <Typography variant="h6" color="primary">
-                        ${booking.totalAmount || '0.00'}
+                        {getDisplayAmount(booking)}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         Total Amount
@@ -204,17 +321,42 @@ const Bookings = () => {
                       <Typography variant="body2" color="text.secondary" gutterBottom>
                         {booking.hotel.address}
                       </Typography>
-                      <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-                        <Typography variant="body2">
-                          <strong>Check-in:</strong> {formatDate(booking.checkInDate)}
-                        </Typography>
-                        <Typography variant="body2">
-                          <strong>Check-out:</strong> {formatDate(booking.checkOutDate)}
-                        </Typography>
-                        <Typography variant="body2">
-                          <strong>Guests:</strong> {booking.numberOfGuests || 1}
+                      <Grid container spacing={1} sx={{ mt: 0.5 }}>
+                        <Grid item xs={12} sm={4}>
+                          <Typography variant="body2"><strong>Check-in:</strong> {formatDate(booking.checkInDate)}</Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <Typography variant="body2"><strong>Check-out:</strong> {formatDate(booking.checkOutDate)}</Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <Typography variant="body2"><strong>Guests:</strong> {booking.numberOfGuests || 1}</Typography>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  )}
+
+                  {(booking.transport || booking.transportType || normalizeBookingType(booking) === 'transport') && (
+                    <Box sx={{ mb: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <TravelExplore sx={{ mr: 1, color: 'primary.main' }} />
+                        <Typography variant="subtitle1" fontWeight="bold">
+                          {(booking.transportType || booking.type || 'Transport').toString().replace(/_/g, ' ')}
                         </Typography>
                       </Box>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        {(booking.departureLocation || 'Origin')} → {(booking.arrivalLocation || 'Destination')}
+                      </Typography>
+                      <Grid container spacing={1} sx={{ mt: 0.5 }}>
+                        <Grid item xs={12} sm={4}>
+                          <Typography variant="body2"><strong>Departure:</strong> {formatDate(booking.departureDate)}</Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <Typography variant="body2"><strong>Provider:</strong> {booking.transportProviderId || 'N/A'}</Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <Typography variant="body2"><strong>Guests:</strong> {booking.numberOfGuests || 1}</Typography>
+                        </Grid>
+                      </Grid>
                     </Box>
                   )}
 
@@ -225,7 +367,7 @@ const Bookings = () => {
                       <Typography variant="subtitle2" gutterBottom>
                         Contact Information
                       </Typography>
-                      <List dense>
+                      <List dense sx={{ '& .MuiListItemIcon-root': { minWidth: 32 } }}>
                         {booking.contactName && (
                           <ListItem disablePadding>
                             <ListItemIcon><Person fontSize="small" /></ListItemIcon>
@@ -261,8 +403,8 @@ const Bookings = () => {
                     </>
                   )}
 
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
-                    {booking.status !== 'cancelled' && (
+                  <Box sx={{ display: 'flex', justifyContent: { xs: 'flex-start', sm: 'flex-end' }, mt: 2.5 }}>
+                    {!isCancelledBooking(booking) && (
                       <Button
                         variant="outlined"
                         color="error"
@@ -276,8 +418,13 @@ const Bookings = () => {
                 </CardContent>
               </Card>
             </Grid>
-          ))}
-        </Grid>
+                    ))}
+                  </Grid>
+                )}
+              </Box>
+            </Grid>
+          </Grid>
+        </>
       )}
 
       {/* Cancel Confirmation Dialog */}
@@ -294,6 +441,18 @@ const Bookings = () => {
           <Typography>
             Are you sure you want to cancel this booking? This action cannot be undone.
           </Typography>
+          
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            label="Cancellation Reason (Optional)"
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            sx={{ mt: 2 }}
+            placeholder="Please provide a reason for cancellation..."
+          />
+          
           {cancelDialog.booking?.hotel && (
             <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
               <Typography variant="subtitle2">{cancelDialog.booking.hotel.name}</Typography>
@@ -301,7 +460,21 @@ const Bookings = () => {
                 {formatDate(cancelDialog.booking.checkInDate)} - {formatDate(cancelDialog.booking.checkOutDate)}
               </Typography>
               <Typography variant="h6" color="primary" sx={{ mt: 1 }}>
-                ${cancelDialog.booking.totalAmount}
+                {cancelDialog.booking ? getDisplayAmount(cancelDialog.booking) : formatCurrency(0, selectedCurrency || 'INR')}
+              </Typography>
+            </Box>
+          )}
+
+          {!cancelDialog.booking?.hotel && cancelDialog.booking && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="subtitle2">
+                {(cancelDialog.booking.transportType || cancelDialog.booking.type || 'Transport').toString().replace(/_/g, ' ')}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {(cancelDialog.booking.departureLocation || 'Origin')} → {(cancelDialog.booking.arrivalLocation || 'Destination')}
+              </Typography>
+              <Typography variant="h6" color="primary" sx={{ mt: 1 }}>
+                {getDisplayAmount(cancelDialog.booking)}
               </Typography>
             </Box>
           )}

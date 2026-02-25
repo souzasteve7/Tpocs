@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Container, 
   Typography, 
@@ -15,7 +15,6 @@ import {
   Card,
   CardContent,
   CardMedia,
-  Divider,
   Avatar,
   Rating,
   IconButton,
@@ -26,6 +25,17 @@ import {
   ListItemIcon,
   ListItemText,
   Skeleton,
+  Alert,
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Divider,
+  InputAdornment,
+  Stepper,
+  Step,
+  StepLabel
 } from '@mui/material';
 import { 
   TravelExplore, 
@@ -36,16 +46,36 @@ import {
   Favorite, 
   FavoriteBorder, 
   Schedule,
+  LocationOn,
+  Person,
+  Email,
+  Phone,
+  Notes,
+  Payment,
+  CheckCircle,
+  Close
 } from '@mui/icons-material';
-import { suggestionsAPI } from '../services/api';
+import { suggestionsAPI, bookingAPI, searchAPI } from '../services/api';
+import { useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { BookingError } from '../components/ErrorDisplay';
+import ErrorDisplay from '../components/ErrorDisplay';
 
 const TravelSuggestions = () => {
+  const location = useLocation();
+  const { user, isAuthenticated } = useAuth();
+  const { selectedCurrency, convertCurrency, formatCurrency } = useCurrency();
+
+  const defaultStartDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const defaultEndDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  
   const [formData, setFormData] = useState({
     fromLocation: '',
     toLocation: '',
     budgetLevel: '',
-    durationDays: 7,
+    travelStartDate: defaultStartDate,
+    travelEndDate: defaultEndDate,
     interests: [],
   });
   const [suggestions, setSuggestions] = useState(null);
@@ -54,9 +84,112 @@ const TravelSuggestions = () => {
   const [favorites, setFavorites] = useState(new Set());
   const [selectedHotel, setSelectedHotel] = useState(null);
   const [selectedTransport, setSelectedTransport] = useState(null);
+  const [transportOptions, setTransportOptions] = useState([]);
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
-  const { selectedCurrency, convertCurrency, formatCurrency } = useCurrency();
+  const [bookingDetails, setBookingDetails] = useState({
+    checkInDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    checkOutDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    numberOfGuests: 1,
+    numberOfAdults: 1,
+    numberOfChildren: 0,
+    contactName: '',
+    contactEmail: '',
+    contactPhone: '',
+    specialRequests: ''
+  });
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [successTitle, setSuccessTitle] = useState('Success');
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [resolvedDestinationCoordinates, setResolvedDestinationCoordinates] = useState(null);
+  const [destinationCatalog, setDestinationCatalog] = useState([]);
+
+  useEffect(() => {
+    const prefetchedDestination = location.state?.destination;
+    if (typeof prefetchedDestination === 'string' && prefetchedDestination.trim()) {
+      setFormData((prev) => ({
+        ...prev,
+        toLocation: prefetchedDestination.trim()
+      }));
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    const resolveDestinationCoordinates = async () => {
+      const destinationName = suggestions?.destinationOverview?.name || formData.toLocation;
+      if (!destinationName) {
+        setResolvedDestinationCoordinates(null);
+        return;
+      }
+
+      try {
+        const response = await searchAPI.getAllDestinations();
+        const destinations = response.data || [];
+
+        const normalizedTarget = destinationName.toString().trim().toLowerCase();
+        const matchedDestination = destinations.find((item) => {
+          const candidates = [item?.name, item?.city, item?.country]
+            .filter(Boolean)
+            .map((value) => value.toString().trim().toLowerCase());
+          return candidates.some((candidate) =>
+            candidate === normalizedTarget ||
+            candidate.includes(normalizedTarget) ||
+            normalizedTarget.includes(candidate)
+          );
+        });
+
+        const latitude = Number(matchedDestination?.latitude);
+        const longitude = Number(matchedDestination?.longitude);
+
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+          setResolvedDestinationCoordinates({ latitude, longitude });
+        } else {
+          setResolvedDestinationCoordinates(null);
+        }
+      } catch (coordinateError) {
+        console.warn('Unable to resolve destination coordinates:', coordinateError);
+        setResolvedDestinationCoordinates(null);
+      }
+    };
+
+    if (suggestions?.destinationOverview || formData.toLocation) {
+      resolveDestinationCoordinates();
+    } else {
+      setResolvedDestinationCoordinates(null);
+    }
+  }, [suggestions?.destinationOverview, formData.toLocation]);
+
+  useEffect(() => {
+    const loadDestinationCatalog = async () => {
+      try {
+        const response = await searchAPI.getAllDestinations();
+        setDestinationCatalog(response.data || []);
+      } catch (catalogError) {
+        console.warn('Unable to load destination catalog:', catalogError);
+        setDestinationCatalog([]);
+      }
+    };
+
+    loadDestinationCatalog();
+  }, []);
+
+  const calculateTripDays = () => {
+    if (!formData.travelStartDate || !formData.travelEndDate) return 1;
+
+    const startDate = new Date(formData.travelStartDate);
+    const endDate = new Date(formData.travelEndDate);
+    const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+    return days > 0 ? days : 1;
+  };
+
+  // Handler to update booking details
+  const updateBookingDetail = (field, value) => {
+    setBookingDetails(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
 
   const interestOptions = [
     'ADVENTURE', 'CULTURE', 'FOOD', 'NIGHTLIFE', 'NATURE', 'BEACH', 
@@ -81,90 +214,551 @@ const TravelSuggestions = () => {
     setFavorites(newFavorites);
   };
 
-  const generateTransportOptions = (fromLocation, toLocation) => {
-    const transportMethods = [
-      {
-        type: 'Flight',
-        duration: '2.5 hours',
-        price: 8500,
-        provider: 'Air India',
-        departure: '10:30 AM',
-        arrival: '1:00 PM',
-        amenities: ['Meals', 'Entertainment', 'WiFi']
-      },
-      {
-        type: 'Train',
-        duration: '12 hours',
-        price: 2800,
-        provider: 'Indian Railways',
-        departure: '8:00 PM',
-        arrival: '8:00 AM',
-        amenities: ['AC Sleeper', 'Meals', 'Charging Points']
-      },
-      {
-        type: 'Bus',
-        duration: '14 hours',
-        price: 1200,
-        provider: 'RedBus Premium',
-        departure: '6:00 PM',
-        arrival: '8:00 AM',
-        amenities: ['Recliner Seats', 'WiFi', 'Blanket']
-      },
-      {
-        type: 'Car Rental',
-        duration: '10 hours',
-        price: 4500,
-        provider: 'Zoomcar',
-        departure: 'Flexible',
-        arrival: 'Flexible',
-        amenities: ['Self Drive', 'GPS', 'Fuel Included']
-      }
-    ];
-    return transportMethods;
-  };
-
-  const generatePlaceExploration = (interests) => {
-    const allPlaces = {
-      'ADVENTURE': [
-        { name: 'Dudhsagar Waterfalls Trek', type: 'Adventure', price: 2500, rating: 4.7 },
-        { name: 'Scuba Diving at Grande Island', type: 'Water Sports', price: 4500, rating: 4.6 }
-      ],
-      'CULTURE': [
-        { name: 'Old Goa Heritage Walk', type: 'Cultural Tour', price: 800, rating: 4.5 },
-        { name: 'Feni Distillery Visit', type: 'Cultural Experience', price: 1200, rating: 4.3 }
-      ],
-      'FOOD': [
-        { name: 'Goan Cooking Class', type: 'Culinary Experience', price: 2200, rating: 4.8 },
-        { name: 'Food Walk in Panaji', type: 'Food Tour', price: 1500, rating: 4.6 }
-      ],
-      'BEACH': [
-        { name: 'Beach Hopping Tour', type: 'Beach Experience', price: 1800, rating: 4.5 },
-        { name: 'Sunset Cruise', type: 'Beach Activity', price: 2800, rating: 4.7 }
-      ],
-      'NATURE': [
-        { name: 'Spice Plantation Tour', type: 'Nature Tour', price: 1600, rating: 4.4 },
-        { name: 'Bird Watching at Salim Ali', type: 'Wildlife', price: 1000, rating: 4.2 }
-      ]
-    };
-
-    let recommendedPlaces = [];
-    interests.forEach(interest => {
-      if (allPlaces[interest]) {
-        recommendedPlaces = [...recommendedPlaces, ...allPlaces[interest]];
-      }
-    });
-
-    return recommendedPlaces.length > 0 ? recommendedPlaces : allPlaces['BEACH'];
-  };
-
+  // Hotel booking handler - show detailed modal first
   const handleHotelBooking = (hotel) => {
+    if (!isAuthenticated) {
+      setError('Please login to book hotels');
+      return;
+    }
+
     setSelectedHotel(hotel);
+    setSelectedTransport(null);
+    // Pre-fill contact info if user is logged in
+    if (user) {
+      setBookingDetails(prev => ({
+        ...prev,
+        contactName: `${user.firstName} ${user.lastName}` || user.name || '',
+        contactEmail: user.email || '',
+        contactPhone: user.phoneNumber || ''
+      }));
+    }
     setShowBookingModal(true);
   };
 
+  // Calculate total nights and cost
+  const calculateBookingCost = () => {
+    if (!selectedHotel || !bookingDetails.checkInDate || !bookingDetails.checkOutDate) return 0;
+    
+    const checkIn = new Date(bookingDetails.checkInDate);
+    const checkOut = new Date(bookingDetails.checkOutDate);
+    const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+    
+    return nights > 0 ? nights * selectedHotel.pricePerNight : 0;
+  };
+
+  const calculateNights = () => {
+    if (!bookingDetails.checkInDate || !bookingDetails.checkOutDate) return 0;
+    
+    const checkIn = new Date(bookingDetails.checkInDate);
+    const checkOut = new Date(bookingDetails.checkOutDate);
+    const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+    
+    return nights > 0 ? nights : 0;
+  };
+
+  const getBookingCurrency = () => selectedCurrency || 'INR';
+
+  const getConvertedAmountForBooking = (amountInInr) => {
+    if (!amountInInr || Number.isNaN(amountInInr)) return 0;
+
+    const bookingCurrency = getBookingCurrency();
+    if (bookingCurrency === 'INR') return amountInInr;
+
+    return convertCurrency(amountInInr, 'INR', bookingCurrency) || 0;
+  };
+
+  const normalizeTransportType = (type) => (type || '').toString().trim().toLowerCase().replace(/_/g, '-');
+
+  const getTransportDisplayName = (type) => {
+    const normalizedType = normalizeTransportType(type);
+
+    if (normalizedType === 'flight') return 'Flight';
+    if (normalizedType === 'train') return 'Train';
+    if (normalizedType === 'taxi') return 'Taxi';
+    if (normalizedType === 'bus' || normalizedType === 'local-transport' || normalizedType === 'local transport') return 'Local Transport';
+
+    return type || 'Transport';
+  };
+
+  const mapTransportTypeForBooking = (type) => {
+    const normalizedType = normalizeTransportType(type);
+
+    if (normalizedType === 'flight') return 'FLIGHT';
+    if (normalizedType === 'train') return 'TRAIN';
+    if (normalizedType === 'taxi') return 'TAXI';
+    if (normalizedType === 'car-rental' || normalizedType === 'car rental') return 'CAR_RENTAL';
+    if (normalizedType === 'ferry') return 'FERRY';
+    if (normalizedType === 'bus' || normalizedType === 'local-transport' || normalizedType === 'local transport') return 'BUS';
+
+    return 'BUS';
+  };
+
+  const getTransportImage = (type) => {
+    const normalizedType = normalizeTransportType(type);
+
+    // Use direct and verified Unsplash CDN image URLs (not page URLs)
+    if (normalizedType === 'flight') return 'https://images.unsplash.com/photo-1587019158091-1a103c5dd17f?auto=format&fit=crop&w=900&q=80';
+    if (normalizedType === 'train') return 'https://images.unsplash.com/photo-1532105956626-9569c03602f6?auto=format&fit=crop&w=900&q=80';
+    if (normalizedType === 'taxi') return 'https://images.unsplash.com/photo-1628947733273-cdae71c9bfd3?auto=format&fit=crop&w=900&q=80';
+    if (normalizedType === 'bus' || normalizedType === 'local-transport' || normalizedType === 'local transport') return 'https://images.unsplash.com/photo-1547886596-61770d06925b?auto=format&fit=crop&w=900&q=80';
+
+    // Default transport image
+    return 'https://images.unsplash.com/photo-1628947733273-cdae71c9bfd3?auto=format&fit=crop&w=900&q=80';
+  };
+
+  const getTransportEmoji = (type) => {
+    const normalizedType = normalizeTransportType(type);
+
+    if (normalizedType === 'flight') return '✈️';
+    if (normalizedType === 'train') return '🚆';
+    if (normalizedType === 'taxi') return '🚕';
+    if (normalizedType === 'bus' || normalizedType === 'local-transport' || normalizedType === 'local transport') return '🚌';
+
+    return '🚗';
+  };
+
+  const getHotelFallbackImage = (category) => {
+    const normalizedCategory = (category || '').toString().trim().toLowerCase();
+
+    if (normalizedCategory === 'luxury') return 'https://images.unsplash.com/photo-1578774443271-39db861dd6d6?auto=format&fit=crop&w=900&q=80';
+    if (normalizedCategory === 'mid-range' || normalizedCategory === 'mid range') return 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=900&q=80';
+
+    return 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=900&q=80';
+  };
+
+  const getHotelImage = (hotel) => {
+    if (!hotel) return getHotelFallbackImage();
+
+    const candidateImage = hotel.imageUrls?.[0] || hotel.imageUrl || hotel.thumbnailUrl || '';
+    if (typeof candidateImage === 'string' && candidateImage.trim()) {
+      return candidateImage.trim();
+    }
+
+    return getHotelFallbackImage(hotel.category);
+  };
+
+  const getAttractionFallbackImage = () =>
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=900&q=80';
+
+  const getAttractionImage = (attraction) => {
+    if (!attraction) return getAttractionFallbackImage();
+
+    const candidateImage = attraction.imageUrls?.[0] || attraction.imageUrl || attraction.thumbnailUrl || '';
+    if (typeof candidateImage === 'string' && candidateImage.trim()) {
+      return candidateImage.trim();
+    }
+
+    return getAttractionFallbackImage();
+  };
+
+  const getDestinationFallbackImage = () =>
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80';
+
+  const getDestinationImage = (overview) => {
+    const candidateImage = overview?.imageUrl || overview?.thumbnailUrl || '';
+    if (typeof candidateImage === 'string' && candidateImage.trim()) {
+      return candidateImage.trim();
+    }
+
+    return getDestinationFallbackImage();
+  };
+
+  const toValidNumber = (value) => {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : null;
+  };
+
+  const getDestinationCoordinates = (overview, fallbackCoordinates = null) => {
+    if (!overview && !fallbackCoordinates) return null;
+
+    const safeOverview = overview || {};
+
+    const latitude =
+      toValidNumber(safeOverview.latitude) ??
+      toValidNumber(safeOverview.lat) ??
+      toValidNumber(safeOverview.destinationLatitude) ??
+      toValidNumber(safeOverview?.quickFacts?.latitude) ??
+      toValidNumber(fallbackCoordinates?.latitude);
+
+    const longitude =
+      toValidNumber(safeOverview.longitude) ??
+      toValidNumber(safeOverview.lng) ??
+      toValidNumber(safeOverview.lon) ??
+      toValidNumber(safeOverview.destinationLongitude) ??
+      toValidNumber(safeOverview?.quickFacts?.longitude) ??
+      toValidNumber(fallbackCoordinates?.longitude);
+
+    if (latitude === null || longitude === null) return null;
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+
+    return { latitude, longitude };
+  };
+
+  const getOpenStreetMapEmbedUrl = (overview, fallbackCoordinates = null) => {
+    const coordinates = getDestinationCoordinates(overview, fallbackCoordinates);
+    if (!coordinates) return '';
+
+    const { latitude, longitude } = coordinates;
+    const delta = 0.08;
+    const left = (longitude - delta).toFixed(6);
+    const right = (longitude + delta).toFixed(6);
+    const top = (latitude + delta).toFixed(6);
+    const bottom = (latitude - delta).toFixed(6);
+
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${latitude}%2C${longitude}`;
+  };
+
+  const isImageUrl = (value) => {
+    if (typeof value !== 'string') return false;
+    const url = value.trim().toLowerCase();
+    if (!url) return false;
+    return /(\.png|\.jpg|\.jpeg|\.webp|\.gif)(\?|$)/.test(url) || url.includes('images.unsplash.com');
+  };
+
+  const getMapRenderData = (overview, fallbackCoordinates = null) => {
+    const openStreetMapEmbedUrl = getOpenStreetMapEmbedUrl(overview, fallbackCoordinates);
+    if (openStreetMapEmbedUrl) {
+      return { type: 'iframe', url: openStreetMapEmbedUrl };
+    }
+
+    const rawMapUrl = overview?.mapUrl;
+    if (typeof rawMapUrl === 'string' && rawMapUrl.trim()) {
+      const mapUrl = rawMapUrl.trim();
+      if (isImageUrl(mapUrl)) {
+        return { type: 'none', url: '' };
+      }
+      return { type: 'iframe', url: mapUrl };
+    }
+
+    return { type: 'none', url: '' };
+  };
+
+  const getEstimatedTotalCost = (suggestionData) => {
+    const recommended = toValidNumber(suggestionData?.budgetBreakdown?.totalBudget?.recommendedTotal);
+    if (recommended !== null && recommended >= 0) {
+      return recommended;
+    }
+
+    const summary = suggestionData?.budgetBreakdown?.totalBudget;
+    if (summary) {
+      const summaryFallback =
+        toValidNumber(summary.midRangeTotal) ??
+        toValidNumber(summary.budgetTotal) ??
+        toValidNumber(summary.luxuryTotal);
+
+      if (summaryFallback !== null && summaryFallback >= 0) {
+        return summaryFallback;
+      }
+    }
+
+    const budget = suggestionData?.budgetBreakdown;
+    if (budget) {
+      const keys = ['accommodation', 'transport', 'activities', 'meals', 'shopping', 'miscellaneous'];
+      const sum = keys.reduce((total, key) => {
+        const value = toValidNumber(budget[key]?.recommended);
+        return total + (value !== null ? value : 0);
+      }, 0);
+
+      if (sum > 0) {
+        return sum;
+      }
+    }
+
+    return null;
+  };
+
+  const normalizeLocationText = (value) =>
+    (value || '')
+      .toString()
+      .trim()
+      .toLowerCase();
+
+  const findLocationRecord = (locationText) => {
+    const normalizedLocation = normalizeLocationText(locationText);
+    if (!normalizedLocation || destinationCatalog.length === 0) return null;
+
+    return destinationCatalog.find((item) => {
+      const candidates = [item?.name, item?.city, item?.country]
+        .filter(Boolean)
+        .map((candidate) => normalizeLocationText(candidate));
+
+      return candidates.some(
+        (candidate) =>
+          candidate === normalizedLocation ||
+          candidate.includes(normalizedLocation) ||
+          normalizedLocation.includes(candidate)
+      );
+    });
+  };
+
+  const isInternationalRoute = (fromLocation, toLocation) => {
+    const fromRecord = findLocationRecord(fromLocation);
+    const toRecord = findLocationRecord(toLocation);
+
+    const fromCountry = normalizeLocationText(fromRecord?.country);
+    const toCountry = normalizeLocationText(toRecord?.country);
+
+    if (fromCountry && toCountry) {
+      return fromCountry !== toCountry;
+    }
+
+    const normalizedFrom = normalizeLocationText(fromLocation);
+    const normalizedTo = normalizeLocationText(toLocation);
+
+    if (!normalizedFrom || !normalizedTo) return false;
+
+    const indiaHints = ['india', 'goa', 'mumbai', 'delhi', 'bangalore', 'hyderabad', 'chennai', 'kolkata', 'kerala'];
+    const fromLooksIndian = indiaHints.some((hint) => normalizedFrom.includes(hint));
+    const toLooksIndian = indiaHints.some((hint) => normalizedTo.includes(hint));
+
+    return fromLooksIndian !== toLooksIndian;
+  };
+
+  const getDefaultTransportDuration = (type, isInternational) => {
+    const normalizedType = normalizeTransportType(type);
+
+    if (isInternational) return '9h 30m';
+    if (normalizedType === 'flight') return '2h 15m';
+    if (normalizedType === 'train') return '8h 30m';
+    if (normalizedType === 'bus' || normalizedType === 'local-transport' || normalizedType === 'local transport') return '10h 00m';
+    if (normalizedType === 'taxi') return '6h 00m';
+
+    return 'N/A';
+  };
+
+  const getDefaultTransportPrice = (type, isInternational) => {
+    const normalizedType = normalizeTransportType(type);
+
+    if (isInternational) return 42000;
+    if (normalizedType === 'flight') return 6500;
+    if (normalizedType === 'train') return 2200;
+    if (normalizedType === 'bus' || normalizedType === 'local-transport' || normalizedType === 'local transport') return 1500;
+    if (normalizedType === 'taxi') return 4500;
+
+    return 2500;
+  };
+
+  const normalizeTransportOption = (option, isInternational = false) => {
+    const rawType = option.type || 'transport';
+    const normalizedType = normalizeTransportType(rawType);
+    const finalType = isInternational ? 'flight' : normalizedType;
+
+    const rawPrice = Number(option.price || option.estimatedCost || 0);
+    const hasValidPrice = Number.isFinite(rawPrice) && rawPrice > 0;
+
+    const normalizedOption = {
+    id: option.id || `${finalType}-${option.provider || 'provider'}`,
+    type: finalType,
+    displayType: getTransportDisplayName(finalType),
+    provider: option.provider || (isInternational ? 'International Airline' : 'Provider'),
+    departure: option.departureTime || option.departure || option.departureDate || 'N/A',
+    arrival: option.arrivalTime || option.arrival || option.arrivalDate || 'N/A',
+    departureLocation: option.departureLocation || formData.fromLocation || 'Current Location',
+    arrivalLocation: option.arrivalLocation || formData.toLocation,
+    duration: option.duration || getDefaultTransportDuration(finalType, isInternational),
+    amenities: option.amenities || [],
+    price: hasValidPrice ? rawPrice : getDefaultTransportPrice(finalType, isInternational),
+    currency: option.currency || 'INR'
+  };
+
+    return normalizedOption;
+  };
+
+  const getProcessedTransportOptions = (options, isInternational = false) => {
+    const normalized = (options || []).map((option) => normalizeTransportOption(option, isInternational));
+
+    const relevant = isInternational
+      ? normalized.filter((option) => normalizeTransportType(option.type) === 'flight')
+      : normalized;
+
+    if (relevant.length > 0) {
+      return relevant;
+    }
+
+    if (isInternational) {
+      return [
+        normalizeTransportOption(
+          {
+            id: `intl-flight-${normalizeLocationText(formData.toLocation) || 'destination'}`,
+            type: 'flight',
+            provider: 'International Airline',
+            departureTime: '06:30',
+            arrivalTime: '16:00',
+            departureLocation: formData.fromLocation || 'Origin',
+            arrivalLocation: formData.toLocation || 'Destination',
+            duration: '9h 30m',
+            price: 42000,
+            currency: 'INR',
+            amenities: ['Cabin Baggage', 'Checked Baggage', 'In-flight Meal']
+          },
+          true
+        )
+      ];
+    }
+
+    return [];
+  };
+
+  // Execute hotel booking with complete details
+  const executeHotelBooking = async () => {
+    if (!selectedHotel || !user) return;
+    
+    try {
+      setBookingLoading(true);
+      
+      const bookingData = {
+        type: 'hotel',
+        hotelId: selectedHotel.id, // Include hotel ID for proper backend lookup
+        hotelName: selectedHotel.name,
+        hotelCategory: selectedHotel.category,
+        hotelDescription: selectedHotel.description,
+        hotelRating: selectedHotel.rating,
+        hotelImageUrl: selectedHotel.imageUrls?.[0] || '',
+        checkInDate: bookingDetails.checkInDate,
+        checkOutDate: bookingDetails.checkOutDate,
+        numberOfGuests: bookingDetails.numberOfGuests,
+        numberOfAdults: bookingDetails.numberOfAdults,
+        numberOfChildren: bookingDetails.numberOfChildren,
+        contactName: bookingDetails.contactName,
+        contactEmail: bookingDetails.contactEmail,
+        contactPhone: bookingDetails.contactPhone,
+        specialRequests: bookingDetails.specialRequests,
+        totalAmount: getConvertedAmountForBooking(calculateBookingCost()),
+        currency: getBookingCurrency(),
+        nights: calculateNights()
+      };
+
+      console.log('Booking hotel with data:', bookingData);
+      
+      // Check if token exists
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        setError('Authentication required. Please log in again.');
+        return;
+      }
+      
+      const response = await bookingAPI.bookHotel(bookingData);
+      
+      setSuccessTitle('Booking Successful');
+      setSuccessMessage(`Hotel "${selectedHotel.name}" booked successfully! Booking reference: ${response.data.bookingReference}`);
+      setShowBookingModal(false);
+      setSelectedHotel(null);
+      
+      // Reset booking details
+      setBookingDetails({
+        checkInDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        checkOutDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        numberOfGuests: 1,
+        numberOfAdults: 1,
+        numberOfChildren: 0,
+        contactName: '',
+        contactEmail: '',
+        contactPhone: '',
+        specialRequests: ''
+      });
+      
+    } catch (error) {
+      console.error('Hotel booking error:', error);
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        setError('Session expired. Please log in again.');
+        // Could trigger re-authentication here
+      } else {
+        setError(
+          error.response?.data?.message || 
+          'Failed to book hotel. Please try again.'
+        );
+      }
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  // Transport booking handler - show modal first for confirmation 
   const handleTransportBooking = (transport) => {
+    if (!isAuthenticated) {
+      setError('Please login to book transport');
+      return;
+    }
+
     setSelectedTransport(transport);
+    setSelectedHotel(null);
+    if (user) {
+      setBookingDetails(prev => ({
+        ...prev,
+        contactName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.name || '',
+        contactEmail: user.email || '',
+        contactPhone: user.phoneNumber || ''
+      }));
+    }
     setShowBookingModal(true);
+  };
+
+  // Actual transport booking execution after user confirmation
+  const executeTransportBooking = async () => {
+    if (!selectedTransport) return;
+
+    if (!bookingDetails.contactName || !bookingDetails.contactEmail) {
+      setError('Please provide contact name and email to continue.');
+      return;
+    }
+    
+    try {
+      setBookingLoading(true);
+      
+      const departureDate = formData.travelStartDate
+        ? new Date(formData.travelStartDate)
+        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      
+      const bookingData = {
+        type: 'transport',
+        transportType: mapTransportTypeForBooking(selectedTransport.type),
+        departureLocation: selectedTransport.departureLocation || formData.fromLocation || 'Current Location',
+        arrivalLocation: selectedTransport.arrivalLocation || formData.toLocation,
+        departureDate: departureDate.toISOString(),
+        transportProviderId: selectedTransport.id || selectedTransport.provider || 'TRANSPORT_PROVIDER',
+        provider: selectedTransport.provider || 'Transport Provider',
+        numberOfGuests: bookingDetails.numberOfGuests,
+        numberOfAdults: bookingDetails.numberOfAdults,
+        numberOfChildren: bookingDetails.numberOfChildren,
+        contactName: bookingDetails.contactName,
+        contactEmail: bookingDetails.contactEmail,
+        contactPhone: bookingDetails.contactPhone,
+        specialRequests: bookingDetails.specialRequests,
+        totalAmount: getConvertedAmountForBooking(selectedTransport.price || selectedTransport.estimatedCost || 0),
+        currency: getBookingCurrency(),
+        seatType: 'economy'
+      };
+
+      console.log('Booking transport:', bookingData);
+      
+      const response = await bookingAPI.bookTransport(bookingData);
+      
+      setSuccessTitle('Booking Successful');
+      setSuccessMessage(`${getTransportDisplayName(selectedTransport.type)} booked successfully! Booking reference: ${response.data.bookingReference}`);
+      setShowBookingModal(false);
+      setSelectedTransport(null);
+
+      setBookingDetails({
+        checkInDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        checkOutDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        numberOfGuests: 1,
+        numberOfAdults: 1,
+        numberOfChildren: 0,
+        contactName: '',
+        contactEmail: '',
+        contactPhone: '',
+        specialRequests: ''
+      });
+      
+    } catch (error) {
+      console.error('Transport booking error:', error);
+      setError(
+        error.response?.data?.message || 
+        'Failed to book transport. Please try again.'
+      );
+    } finally {
+      setBookingLoading(false);
+    }
   };
 
   const TabPanel = ({ children, value, index }) => (
@@ -256,116 +850,99 @@ const generateMockItinerary = (days) => {
     return activities.slice(0, Math.min(days, activities.length));
   };
 
-  const mockItinerary = generateMockItinerary(formData.durationDays);
+  const tripDays = calculateTripDays();
+  const mockItinerary = generateMockItinerary(tripDays);
 
 
 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!formData.toLocation.trim()) {
+      setError('Please enter a destination');
+      return;
+    }
+
+    if (!formData.travelStartDate || !formData.travelEndDate) {
+      setError('Please select travel start and end dates');
+      return;
+    }
+
+    if (new Date(formData.travelEndDate) <= new Date(formData.travelStartDate)) {
+      setError('Travel end date must be after the start date');
+      return;
+    }
+    
     setLoading(true);
+    setError('');
+    
     try {
-      const response = await suggestionsAPI.getComprehensiveSuggestions(formData);
+      // Prepare request data matching backend DTO structure
+      const requestData = {
+        toLocation: formData.toLocation,
+        fromLocation: formData.fromLocation || null,
+        durationDays: tripDays,
+        budgetLevel: formData.budgetLevel || 'mid-range',
+        interests: formData.interests,
+        numberOfTravelers: 1,
+        currency: selectedCurrency || 'INR'
+      };
+      
+      console.log('Sending request:', requestData);
+      
+      const response = await suggestionsAPI.getComprehensiveSuggestions(requestData);
+      console.log('API Response:', response.data);
+
+      let normalizedTransport = [];
+      const internationalRoute = isInternationalRoute(formData.fromLocation, formData.toLocation);
+      if (formData.fromLocation?.trim() && formData.toLocation?.trim()) {
+        try {
+          const transportResponse = await searchAPI.searchTransport({
+            from: formData.fromLocation.trim(),
+            to: formData.toLocation.trim(),
+            date: formData.travelStartDate
+          });
+
+          normalizedTransport = getProcessedTransportOptions(transportResponse.data || [], internationalRoute);
+          console.log('Transport API response:', normalizedTransport);
+        } catch (transportError) {
+          console.warn('Transport API failed, using suggestions transport fallback:', transportError);
+        }
+      }
+
+      if (normalizedTransport.length === 0) {
+        normalizedTransport = getProcessedTransportOptions(response.data?.suggestedTransportOptions || [], internationalRoute);
+      }
+      
       setSuggestions(response.data);
+      setTransportOptions(normalizedTransport);
+      setSuccessTitle('Travel Suggestions Ready');
+      setSuccessMessage('Travel suggestions loaded successfully!');
+      
     } catch (error) {
       console.error('Error getting suggestions:', error);
-      // Enhanced mock response based on user inputs
-      const transportOptions = generateTransportOptions(formData.fromLocation, formData.toLocation);
-      const explorationPlaces = generatePlaceExploration(formData.interests);
+      setError(
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to get travel suggestions. Please try again.'
+      );
       
-      setSuggestions({
-        destinationOverview: {
-          name: formData.toLocation || 'Goa',
-          description: 'Beach paradise with Portuguese heritage, nightlife, and water sports.',
-          bestTimeToVisit: 'November to March',
-          currency: 'INR',
-          mapUrl: `https://maps.google.com/embed?pb=!1m18!1m12!1m3!1d246196.37729529118!2d73.69815272387695!3d15.347142839999999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1`
-        },
-        budgetBreakdown: {
-          totalBudget: {
-            recommended: formData.budgetLevel === 'luxury' ? 85000 : formData.budgetLevel === 'mid-range' ? 45000 : 25000,
-            currency: 'INR'
-          },
-          breakdown: {
-            accommodation: formData.budgetLevel === 'luxury' ? 35000 : formData.budgetLevel === 'mid-range' ? 18000 : 8000,
-            transport: formData.budgetLevel === 'luxury' ? 20000 : formData.budgetLevel === 'mid-range' ? 12000 : 6000,
-            food: formData.budgetLevel === 'luxury' ? 15000 : formData.budgetLevel === 'mid-range' ? 8000 : 4000,
-            activities: formData.budgetLevel === 'luxury' ? 12000 : formData.budgetLevel === 'mid-range' ? 6000 : 3000,
-            miscellaneous: formData.budgetLevel === 'luxury' ? 3000 : formData.budgetLevel === 'mid-range' ? 1000 : 4000
-          }
-        },
-        suggestedAccommodations: [
-          {
-            name: formData.budgetLevel === 'luxury' ? 'The Leela Goa' : 'Goa Beach Resort',
-            type: formData.budgetLevel === 'luxury' ? 'luxury resort' : 'resort',
-            pricePerNight: formData.budgetLevel === 'luxury' ? 15000 : formData.budgetLevel === 'mid-range' ? 6500 : 2500,
-            rating: formData.budgetLevel === 'luxury' ? 4.8 : 4.5,
-            category: formData.budgetLevel || 'mid-range',
-            amenities: formData.budgetLevel === 'luxury' 
-              ? ['Private Beach', 'Spa', 'Golf Course', 'Fine Dining', 'Butler Service']
-              : ['Beach Access', 'Pool', 'Spa', 'Restaurant'],
-            bookingUrl: '#',
-            availability: 'Available'
-          },
-          {
-            name: formData.budgetLevel === 'luxury' ? 'Taj Exotica Goa' : 'Backpacker Hostel Goa',
-            type: formData.budgetLevel === 'luxury' ? 'luxury resort' : 'hostel',
-            pricePerNight: formData.budgetLevel === 'luxury' ? 12000 : formData.budgetLevel === 'mid-range' ? 3500 : 1200,
-            rating: formData.budgetLevel === 'luxury' ? 4.7 : 4.2,
-            category: formData.budgetLevel || 'budget',
-            amenities: formData.budgetLevel === 'luxury' 
-              ? ['Beach Villa', 'Infinity Pool', 'Spa', 'Multiple Restaurants']
-              : ['WiFi', 'Common Kitchen', 'Beach Nearby'],
-            bookingUrl: '#',
-            availability: 'Available'
-          }
-        ],
-        transportOptions: transportOptions,
-        explorationPlaces: explorationPlaces,
-        suggestedAttractions: [
-          {
-            name: 'Basilica of Bom Jesus',
-            type: 'Historical Site',
-            estimatedCost: 5,
-            description: 'UNESCO World Heritage Church housing St. Francis Xavier',
-            rating: 4.5,
-            duration: '1 hour',
-            bookingRequired: false
-          },
-          {
-            name: 'Baga Beach',
-            type: 'Beach',
-            estimatedCost: 0,
-            description: 'Famous beach known for water sports and nightlife',
-            rating: 4.4,
-            duration: '3 hours',
-            bookingRequired: false
-          },
-          {
-            name: 'Dudhsagar Falls',
-            type: 'Natural Wonder',
-            estimatedCost: 1500,
-            description: 'Four-tiered waterfall on Mandovi River (includes transport)',
-            rating: 4.6,
-            duration: '4 hours',
-            bookingRequired: true
-          }
-        ],
-        priceRange: {
-          budget: { min: 15000, max: 30000 },
-          midRange: { min: 30000, max: 60000 },
-          luxury: { min: 60000, max: 150000 }
-        },
-        metadata: {
-          suggestedDuration: formData.durationDays,
-          fromLocation: formData.fromLocation,
-          interests: formData.interests
-        }
-      });
+      // Clear any existing suggestions on error
+      setSuggestions(null);
+      setTransportOptions([]);
     } finally {
       setLoading(false);
     }
   };
+
+  const estimatedTotalCost = getEstimatedTotalCost(suggestions);
+  const originalBudgetCurrency = suggestions?.budgetBreakdown?.totalBudget?.currency || 'INR';
+  const mapRenderData = getMapRenderData(suggestions?.destinationOverview, resolvedDestinationCoordinates);
+  const internationalRoute = isInternationalRoute(formData.fromLocation, formData.toLocation);
+  const displayTransportOptions = transportOptions.length > 0
+    ? getProcessedTransportOptions(transportOptions, internationalRoute)
+    : getProcessedTransportOptions(suggestions?.suggestedTransportOptions || [], internationalRoute);
 
   return (
     <Box 
@@ -384,6 +961,42 @@ const generateMockItinerary = (days) => {
         flexDirection: 'column',
         alignItems: 'center'
       }}>
+      
+      {/* Error and Success Messages */}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={6000}
+        onClose={() => setError('')}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Box sx={{ width: '100%' }}>
+          <BookingError 
+            error={error}
+            onClose={() => setError('')}
+          />
+        </Box>
+      </Snackbar>
+      
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={4000}
+        onClose={() => {
+          setSuccessMessage('');
+          setSuccessTitle('Success');
+        }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Box sx={{ width: '100%' }}>
+          <ErrorDisplay 
+            success={successMessage}
+            title={successTitle}
+            onClose={() => {
+              setSuccessMessage('');
+              setSuccessTitle('Success');
+            }}
+          />
+        </Box>
+      </Snackbar>
       <Grid container spacing={4} sx={{ 
         maxWidth: '900px',
         mx: 'auto',
@@ -574,55 +1187,100 @@ const generateMockItinerary = (days) => {
                 </Select>
               </FormControl>
 
-              <TextField
-                fullWidth
-                label="📅 Duration (Days)"
-                name="durationDays"
-                type="number"
-                value={formData.durationDays}
-                onChange={handleChange}
-                margin="normal"
-                inputProps={{ min: 1, max: 30 }}
-                variant="outlined"
-                sx={{ 
-                  '& .MuiOutlinedInput-root': {
-                    backgroundColor: 'white',
-                    borderRadius: '8px',
-                    '& fieldset': {
-                      borderColor: '#ddd',
-                      borderWidth: '1px'
-                    },
-                    '&:hover': {
-                      '& fieldset': {
-                        borderColor: '#ff5a5f',
-                        borderWidth: '2px'
+              {/* <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="📅 Travel Start Date"
+                    name="travelStartDate"
+                    type="date"
+                    value={formData.travelStartDate}
+                    onChange={handleChange}
+                    margin="normal"
+                    variant="outlined"
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: 'white',
+                        borderRadius: '8px',
+                        '& fieldset': {
+                          borderColor: '#ddd',
+                          borderWidth: '1px'
+                        },
+                        '&:hover': {
+                          '& fieldset': {
+                            borderColor: '#ff5a5f',
+                            borderWidth: '2px'
+                          }
+                        },
+                        '&.Mui-focused': {
+                          '& fieldset': {
+                            borderColor: '#ff5a5f',
+                            borderWidth: '2px'
+                          }
+                        },
+                        '& input': {
+                          color: '#222222',
+                          fontSize: '14px'
+                        }
+                      },
+                      '& .MuiInputLabel-root': {
+                        color: '#717171',
+                        '&.Mui-focused': {
+                          color: '#ff5a5f',
+                          fontWeight: 500
+                        }
                       }
-                    },
-                    '&.Mui-focused': {
-                      '& fieldset': {
-                        borderColor: '#ff5a5f',
-                        borderWidth: '2px'
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="📅 Travel End Date"
+                    name="travelEndDate"
+                    type="date"
+                    value={formData.travelEndDate}
+                    onChange={handleChange}
+                    margin="normal"
+                    variant="outlined"
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: 'white',
+                        borderRadius: '8px',
+                        '& fieldset': {
+                          borderColor: '#ddd',
+                          borderWidth: '1px'
+                        },
+                        '&:hover': {
+                          '& fieldset': {
+                            borderColor: '#ff5a5f',
+                            borderWidth: '2px'
+                          }
+                        },
+                        '&.Mui-focused': {
+                          '& fieldset': {
+                            borderColor: '#ff5a5f',
+                            borderWidth: '2px'
+                          }
+                        },
+                        '& input': {
+                          color: '#222222',
+                          fontSize: '14px'
+                        }
+                      },
+                      '& .MuiInputLabel-root': {
+                        color: '#717171',
+                        '&.Mui-focused': {
+                          color: '#ff5a5f',
+                          fontWeight: 500
+                        }
                       }
-                    },
-                    '& input': {
-                      color: '#222222',
-                      fontSize: '14px'
-                    }
-                  },
-                  '& .MuiInputLabel-root': {
-                    color: '#717171',
-                    '&.Mui-focused': {
-                      color: '#ff5a5f',
-                      fontWeight: 500
-                    }
-                  },
-                  '& .MuiFormHelperText-root': {
-                    color: '#717171',
-                    fontSize: '12px'
-                  }
-                }}
-                helperText="How many days do you want to travel?"
-              />
+                    }}
+                  />
+                </Grid>
+              </Grid> */}
 
               <FormControl fullWidth margin="normal">
                 <InputLabel sx={{ color: '#717171', '&.Mui-focused': { color: '#ff5a5f', fontWeight: 500 } }}>🎯 Interests</InputLabel>
@@ -824,6 +1482,217 @@ const generateMockItinerary = (days) => {
             </Box>
           )}
 
+          {showBookingModal && selectedTransport && (
+            <Dialog
+              open={showBookingModal}
+              onClose={() => setShowBookingModal(false)}
+              maxWidth="md"
+              fullWidth
+              PaperProps={{
+                sx: {
+                  borderRadius: '16px',
+                  maxHeight: '85vh'
+                }
+              }}
+            >
+              <DialogTitle sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                backgroundColor: '#f8f9fa',
+                borderBottom: '1px solid #e9ecef'
+              }}>
+                <Typography variant="h5" fontWeight="600" sx={{ color: '#ff5a5f' }}>
+                  🚌 Book Your Transport
+                </Typography>
+                <IconButton onClick={() => setShowBookingModal(false)} sx={{ color: '#6c757d' }}>
+                  <Close />
+                </IconButton>
+              </DialogTitle>
+
+              <DialogContent sx={{ p: 3 }}>
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                    <CardMedia
+                      component="img"
+                      sx={{ width: 140, height: 90, borderRadius: '8px', objectFit: 'cover' }}
+                      image={getTransportImage(selectedTransport.type)}
+                      alt={getTransportDisplayName(selectedTransport.type)}
+                    />
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h6" fontWeight="600">
+                        {selectedTransport.displayType || getTransportDisplayName(selectedTransport.type)}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                        by {selectedTransport.provider || 'Transport Provider'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {selectedTransport.departureLocation || formData.fromLocation || 'Current Location'} → {selectedTransport.arrivalLocation || formData.toLocation}
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                        <Chip size="small" label={`Departure: ${selectedTransport.departure || 'N/A'}`} />
+                        <Chip size="small" label={`Arrival: ${selectedTransport.arrival || 'N/A'}`} />
+                        <Chip size="small" label={`Duration: ${selectedTransport.duration || 'N/A'}`} />
+                      </Box>
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Divider sx={{ my: 3 }} />
+
+                <Grid container spacing={3}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Adults"
+                      type="number"
+                      value={bookingDetails.numberOfAdults}
+                      onChange={(e) => {
+                        const adults = Math.max(1, parseInt(e.target.value, 10) || 1);
+                        setBookingDetails(prev => ({
+                          ...prev,
+                          numberOfAdults: adults,
+                          numberOfGuests: adults + prev.numberOfChildren
+                        }));
+                      }}
+                      inputProps={{ min: 1 }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Children"
+                      type="number"
+                      value={bookingDetails.numberOfChildren}
+                      onChange={(e) => {
+                        const children = Math.max(0, parseInt(e.target.value, 10) || 0);
+                        setBookingDetails(prev => ({
+                          ...prev,
+                          numberOfChildren: children,
+                          numberOfGuests: prev.numberOfAdults + children
+                        }));
+                      }}
+                      inputProps={{ min: 0 }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Total Guests"
+                      value={bookingDetails.numberOfGuests}
+                      InputProps={{ readOnly: true }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      required
+                      label="Contact Name"
+                      value={bookingDetails.contactName}
+                      onChange={(e) => updateBookingDetail('contactName', e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Person sx={{ fontSize: 20 }} />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      required
+                      label="Email Address"
+                      type="email"
+                      value={bookingDetails.contactEmail}
+                      onChange={(e) => updateBookingDetail('contactEmail', e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Email sx={{ fontSize: 20 }} />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Phone Number"
+                      value={bookingDetails.contactPhone}
+                      onChange={(e) => updateBookingDetail('contactPhone', e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Phone sx={{ fontSize: 20 }} />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={3}
+                      label="Special Requests (Optional)"
+                      value={bookingDetails.specialRequests}
+                      onChange={(e) => updateBookingDetail('specialRequests', e.target.value)}
+                    />
+                  </Grid>
+                </Grid>
+
+                <Divider sx={{ my: 3 }} />
+
+                <Box sx={{
+                  backgroundColor: '#f8f9fa',
+                  p: 2,
+                  borderRadius: '8px',
+                  border: '1px solid #e9ecef'
+                }}>
+                  <Typography variant="h6" fontWeight="600" gutterBottom>
+                    💰 Price Summary
+                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2">
+                      {formatCurrency(convertCurrency(selectedTransport.price || 0))} × {bookingDetails.numberOfGuests} guest(s)
+                    </Typography>
+                    <Typography variant="h6" fontWeight="600" sx={{ color: '#ff5a5f' }}>
+                      {formatCurrency(convertCurrency((selectedTransport.price || 0) * bookingDetails.numberOfGuests))}
+                    </Typography>
+                  </Box>
+                </Box>
+              </DialogContent>
+
+              <DialogActions sx={{ p: 3, backgroundColor: '#f8f9fa' }}>
+                <Button variant="outlined" onClick={() => setShowBookingModal(false)} sx={{ minWidth: 120 }}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={executeTransportBooking}
+                  disabled={bookingLoading || !bookingDetails.contactName || !bookingDetails.contactEmail}
+                  sx={{
+                    minWidth: 120,
+                    backgroundColor: '#ff5a5f',
+                    '&:hover': { backgroundColor: '#e04e53' }
+                  }}
+                >
+                  {bookingLoading
+                    ? 'Processing...'
+                    : `Book Now - ${formatCurrency(convertCurrency((selectedTransport.price || 0) * bookingDetails.numberOfGuests))}`}
+                </Button>
+              </DialogActions>
+            </Dialog>
+          )}
+
           {suggestions && !loading && (
             <Box sx={{ 
               width: '100%',
@@ -842,22 +1711,13 @@ const generateMockItinerary = (days) => {
                   <CardMedia
                     component="img"
                     height="300"
-                    image={
-                      suggestions.destinationOverview?.name?.toLowerCase().includes('goa') 
-                        ? 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&q=80'
-                        : suggestions.destinationOverview?.name?.toLowerCase().includes('paris')
-                        ? 'https://images.unsplash.com/photo-1502602898536-47ad22581b52?w=800&q=80'
-                        : suggestions.destinationOverview?.name?.toLowerCase().includes('tokyo')
-                        ? 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80'
-                        : suggestions.destinationOverview?.name?.toLowerCase().includes('kerala')
-                        ? 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&q=80'
-                        : suggestions.destinationOverview?.name?.toLowerCase().includes('kashmir')
-                        ? 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80'
-                        : suggestions.destinationOverview?.name?.toLowerCase().includes('rajasthan')
-                        ? 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4?w=800&q=80'
-                        : 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80'
-                    }
+                    image={getDestinationImage(suggestions.destinationOverview)}
                     alt={suggestions.destinationOverview?.name}
+                    onError={(e) => {
+                      if (e.currentTarget.src !== getDestinationFallbackImage()) {
+                        e.currentTarget.src = getDestinationFallbackImage();
+                      }
+                    }}
                   />
                   <Box sx={{ 
                     position: 'absolute', 
@@ -910,7 +1770,7 @@ const generateMockItinerary = (days) => {
                           />
                           <Chip 
                             icon={<AccessTime />} 
-                            label={`${formData.durationDays} days`}
+                            label={`${tripDays} days`}
                             sx={{
                               backgroundColor: '#f7f7f7',
                               color: '#222222',
@@ -930,14 +1790,16 @@ const generateMockItinerary = (days) => {
                         </Box>
                         <Box sx={{ textAlign: 'right' }}>
                           <Typography variant="h5" color="primary.main" fontWeight="bold">
-                            {formatCurrency(convertCurrency(suggestions.budgetBreakdown?.totalBudget?.recommended, suggestions.budgetBreakdown?.totalBudget?.currency))}
+                            {estimatedTotalCost !== null
+                              ? formatCurrency(convertCurrency(estimatedTotalCost, originalBudgetCurrency))
+                              : 'Cost unavailable'}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             Total estimated cost
                           </Typography>
-                          {selectedCurrency !== (suggestions.budgetBreakdown?.totalBudget?.currency || 'INR') && (
+                          {estimatedTotalCost !== null && selectedCurrency !== originalBudgetCurrency && (
                             <Typography variant="caption" color="text.secondary">
-                              Original: {suggestions.budgetBreakdown?.totalBudget?.currency || 'INR'} {suggestions.budgetBreakdown?.totalBudget?.recommended || 'N/A'}
+                              Original: {originalBudgetCurrency} {Math.round(estimatedTotalCost).toLocaleString('en-IN')}
                             </Typography>
                           )}
                         </Box>
@@ -954,7 +1816,7 @@ const generateMockItinerary = (days) => {
                               <Box sx={{ textAlign: 'center', p: 1, backgroundColor: '#f8f9fa', borderRadius: 2 }}>
                                 <Typography variant="caption" color="text.secondary">Accommodation</Typography>
                                 <Typography variant="body2" fontWeight="600">
-                                  {formatCurrency(convertCurrency(suggestions.budgetBreakdown.breakdown.accommodation, suggestions.budgetBreakdown.totalBudget?.currency))}
+                                  {formatCurrency(convertCurrency(suggestions.budgetBreakdown.accommodation?.recommended, suggestions.budgetBreakdown?.currency || 'INR'))}
                                 </Typography>
                               </Box>
                             </Grid>
@@ -962,7 +1824,7 @@ const generateMockItinerary = (days) => {
                               <Box sx={{ textAlign: 'center', p: 1, backgroundColor: '#f8f9fa', borderRadius: 2 }}>
                                 <Typography variant="caption" color="text.secondary">Transport</Typography>
                                 <Typography variant="body2" fontWeight="600">
-                                  {formatCurrency(convertCurrency(suggestions.budgetBreakdown.breakdown.transport, suggestions.budgetBreakdown.totalBudget?.currency))}
+                                  {formatCurrency(convertCurrency(suggestions.budgetBreakdown.transport?.recommended, suggestions.budgetBreakdown?.currency || 'INR'))}
                                 </Typography>
                               </Box>
                             </Grid>
@@ -970,7 +1832,7 @@ const generateMockItinerary = (days) => {
                               <Box sx={{ textAlign: 'center', p: 1, backgroundColor: '#f8f9fa', borderRadius: 2 }}>
                                 <Typography variant="caption" color="text.secondary">Food</Typography>
                                 <Typography variant="body2" fontWeight="600">
-                                  {formatCurrency(convertCurrency(suggestions.budgetBreakdown.breakdown.food, suggestions.budgetBreakdown.totalBudget?.currency))}
+                                  {formatCurrency(convertCurrency(suggestions.budgetBreakdown.meals?.recommended, suggestions.budgetBreakdown?.currency || 'INR'))}
                                 </Typography>
                               </Box>
                             </Grid>
@@ -978,7 +1840,7 @@ const generateMockItinerary = (days) => {
                               <Box sx={{ textAlign: 'center', p: 1, backgroundColor: '#f8f9fa', borderRadius: 2 }}>
                                 <Typography variant="caption" color="text.secondary">Activities</Typography>
                                 <Typography variant="body2" fontWeight="600">
-                                  {formatCurrency(convertCurrency(suggestions.budgetBreakdown.breakdown.activities, suggestions.budgetBreakdown.totalBudget?.currency))}
+                                  {formatCurrency(convertCurrency(suggestions.budgetBreakdown.activities?.recommended, suggestions.budgetBreakdown?.currency || 'INR'))}
                                 </Typography>
                               </Box>
                             </Grid>
@@ -986,7 +1848,7 @@ const generateMockItinerary = (days) => {
                               <Box sx={{ textAlign: 'center', p: 1, backgroundColor: '#f8f9fa', borderRadius: 2 }}>
                                 <Typography variant="caption" color="text.secondary">Misc</Typography>
                                 <Typography variant="body2" fontWeight="600">
-                                  {formatCurrency(convertCurrency(suggestions.budgetBreakdown.breakdown.miscellaneous, suggestions.budgetBreakdown.totalBudget?.currency))}
+                                  {formatCurrency(convertCurrency(suggestions.budgetBreakdown.miscellaneous?.recommended, suggestions.budgetBreakdown?.currency || 'INR'))}
                                 </Typography>
                               </Box>
                             </Grid>
@@ -1007,9 +1869,9 @@ const generateMockItinerary = (days) => {
                         justifyContent: 'center',
                         border: '1px solid #e0e0e0'
                       }}>
-                        {suggestions.destinationOverview?.mapUrl ? (
+                        {mapRenderData.type === 'iframe' ? (
                           <iframe 
-                            src={suggestions.destinationOverview.mapUrl}
+                            src={mapRenderData.url}
                             width="100%"
                             height="100%"
                             style={{ border: 0 }}
@@ -1017,6 +1879,13 @@ const generateMockItinerary = (days) => {
                             loading="lazy"
                             referrerPolicy="no-referrer-when-downgrade"
                             title={`Map of ${suggestions.destinationOverview?.name}`}
+                          />
+                        ) : mapRenderData.type === 'image' ? (
+                          <CardMedia
+                            component="img"
+                            image={mapRenderData.url}
+                            alt={`${suggestions.destinationOverview?.name || 'Destination'} map`}
+                            sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />
                         ) : (
                           <Box sx={{ textAlign: 'center' }}>
@@ -1078,12 +1947,35 @@ const generateMockItinerary = (days) => {
                       Hotels & Accommodations
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      From {formData.fromLocation} to {formData.toLocation} • {formData.durationDays} nights
+                      From {formData.fromLocation} to {formData.toLocation} • {tripDays} nights
                     </Typography>
                   </Box>
-                  <Grid container spacing={3}>
-                    {suggestions.suggestedAccommodations?.map((hotel, index) => (
-                      <Grid item xs={12} md={6} key={index}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 3,
+                      justifyContent: suggestions.suggestedAccommodations?.length === 1 ? 'center' : 'flex-start'
+                    }}
+                  >
+                    {suggestions.suggestedAccommodations?.map((hotel, index, hotelList) => {
+                      const totalCards = hotelList?.length || 0;
+                      const isLastOddCard = totalCards % 2 === 1 && index === totalCards - 1;
+
+                      return (
+                      <Box
+                        key={index}
+                        sx={{
+                          flex: '1 1 calc(50% - 12px)',
+                          maxWidth: 'calc(50% - 12px)',
+                          minWidth: '300px',
+                          ...(isLastOddCard && {
+                            marginLeft: 'auto',
+                            marginRight: 'auto',
+                            flex: '0 0 calc(50% - 12px)'
+                          })
+                        }}
+                      >
                         <Card 
                           sx={{ 
                             borderRadius: '12px', 
@@ -1095,20 +1987,21 @@ const generateMockItinerary = (days) => {
                               boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
                               borderColor: '#ff5a5f'
                             },
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column'
                           }}
                         >
                           <Box sx={{ position: 'relative' }}>
                             <CardMedia
                               component="img"
-                              height="200"
-                              image={
-                                hotel.category === 'luxury' 
-                                  ? 'https://images.unsplash.com/photo-1578774443271-39db861dd6d6?w=400&q=80'
-                                  : hotel.category === 'mid-range'
-                                  ? 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&q=80'
-                                  : 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400&q=80'
-                              }
+                              height="150"
+                              image={getHotelImage(hotel)}
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = getHotelFallbackImage(hotel.category);
+                              }}
                               alt={hotel.name}
                             />
                             <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
@@ -1129,11 +2022,17 @@ const generateMockItinerary = (days) => {
                               />
                             </Box>
                           </Box>
-                          <CardContent>
+                          <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 1.5 }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                              <Typography variant="h6" fontWeight="600">
-                                {hotel.name}
-                              </Typography>
+                              <Box>
+                                <Typography variant="subtitle1" fontWeight="600">
+                                  {hotel.name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <LocationOn sx={{ fontSize: 16 }} />
+                                  {hotel.location}
+                                </Typography>
+                              </Box>
                               <Chip 
                                 label={hotel.category} 
                                 size="small"
@@ -1142,14 +2041,14 @@ const generateMockItinerary = (days) => {
                                 sx={{ textTransform: 'capitalize' }}
                               />
                             </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75 }}>
                               <Rating value={hotel.rating} precision={0.1} size="small" readOnly />
-                              <Typography variant="body2" sx={{ ml: 1, fontWeight: 500 }}>
+                              <Typography variant="caption" sx={{ ml: 1, fontWeight: 500 }}>
                                 {hotel.rating} ({Math.floor(Math.random() * 500) + 100} reviews)
                               </Typography>
                             </Box>
                             {hotel.amenities && (
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 2 }}>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.25 }}>
                                 {hotel.amenities.slice(0, 3).map((amenity, i) => (
                                   <Chip key={i} label={amenity} size="small" variant="outlined" />
                                 ))}
@@ -1158,9 +2057,9 @@ const generateMockItinerary = (days) => {
                                 )}
                               </Box>
                             )}
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 'auto', mb: 0.5 }}>
                               <Box>
-                                <Typography variant="h6" color="primary.main" fontWeight="bold">
+                                <Typography variant="subtitle1" color="primary.main" fontWeight="bold">
                                   {formatCurrency(convertCurrency(hotel.pricePerNight))}/night
                                 </Typography>
                                 {selectedCurrency !== 'INR' && hotel.pricePerNight && (
@@ -1169,29 +2068,38 @@ const generateMockItinerary = (days) => {
                                   </Typography>
                                 )}
                                 <Typography variant="body2" color="text.secondary">
-                                  Total: {formatCurrency(convertCurrency(hotel.pricePerNight * formData.durationDays))}
+                                  Total: {formatCurrency(convertCurrency(hotel.pricePerNight * tripDays))}
                                 </Typography>
                               </Box>
                               <Button 
                                 variant="contained"
                                 color="primary"
                                 onClick={() => handleHotelBooking(hotel)}
+                                disabled={bookingLoading}
                                 sx={{
                                   backgroundColor: '#ff5a5f',
                                   '&:hover': { backgroundColor: '#e04e53' },
                                   borderRadius: '8px',
                                   textTransform: 'none',
-                                  fontWeight: 600
+                                  fontWeight: 600,
+                                  fontSize: '0.8rem',
+                                  px: 1.5,
+                                  py: 0.6,
+                                  '&:disabled': {
+                                    backgroundColor: '#ccc',
+                                    color: '#999'
+                                  }
                                 }}
                               >
-                                Book Now
+                                {bookingLoading ? 'Booking...' : isAuthenticated ? 'Book Now' : 'Login to Book'}
                               </Button>
                             </Box>
                           </CardContent>
                         </Card>
-                      </Grid>
-                    ))}
-                  </Grid>
+                      </Box>
+                      );
+                    })}
+                  </Box>
                 </TabPanel>
 
                 {/* Transport Tab */}
@@ -1204,9 +2112,32 @@ const generateMockItinerary = (days) => {
                       Travel from {formData.fromLocation} to {formData.toLocation}
                     </Typography>
                   </Box>
-                  <Grid container spacing={3}>
-                    {suggestions.transportOptions?.map((transport, index) => (
-                      <Grid item xs={12} md={6} key={index}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 3,
+                      justifyContent: displayTransportOptions?.length === 1 ? 'center' : 'flex-start'
+                    }}
+                  >
+                    {displayTransportOptions?.map((transport, index, transportList) => {
+                      const totalCards = transportList?.length || 0;
+                      const isLastOddCard = totalCards % 2 === 1 && index === totalCards - 1;
+
+                      return (
+                      <Box
+                        key={index}
+                        sx={{
+                          flex: '1 1 calc(50% - 12px)',
+                          maxWidth: 'calc(50% - 12px)',
+                          minWidth: '300px',
+                          ...(isLastOddCard && {
+                            marginLeft: 'auto',
+                            marginRight: 'auto',
+                            flex: '0 0 calc(50% - 12px)'
+                          })
+                        }}
+                      >
                         <Card 
                           sx={{ 
                             borderRadius: '12px',
@@ -1217,31 +2148,41 @@ const generateMockItinerary = (days) => {
                               boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
                               borderColor: '#ff5a5f'
                             },
-                            transition: 'all 0.2s ease'
+                            transition: 'all 0.2s ease',
+                            overflow: 'hidden',
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column'
                           }}
                         >
-                          <CardContent>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                          <CardMedia
+                            component="img"
+                            height="150"
+                            image={getTransportImage(transport.type)}
+                            alt={getTransportDisplayName(transport.type)}
+                          />
+                          <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 1.5 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.25 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                 <Box sx={{
-                                  width: 48,
-                                  height: 48,
+                                  width: 40,
+                                  height: 40,
                                   borderRadius: '50%',
-                                  backgroundColor: transport.type === 'Flight' ? '#4CAF50' : transport.type === 'Train' ? '#2196F3' : transport.type === 'Bus' ? '#FF9800' : '#9C27B0',
+                                  backgroundColor: normalizeTransportType(transport.type) === 'flight' ? '#4CAF50' : normalizeTransportType(transport.type) === 'train' ? '#2196F3' : normalizeTransportType(transport.type) === 'taxi' ? '#9C27B0' : '#FF9800',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   mr: 2
                                 }}>
-                                  <Typography variant="h6" color="white" fontWeight="600">
-                                    {transport.type === 'Flight' ? '✈️' : transport.type === 'Train' ? '🚆' : transport.type === 'Bus' ? '🚌' : '🚗'}
+                                  <Typography variant="body1" color="white" fontWeight="600">
+                                    {getTransportEmoji(transport.type)}
                                   </Typography>
                                 </Box>
                                 <Box>
-                                  <Typography variant="h6" fontWeight="600">
-                                    {transport.type}
+                                  <Typography variant="subtitle1" fontWeight="600">
+                                    {transport.displayType || getTransportDisplayName(transport.type)}
                                   </Typography>
-                                  <Typography variant="body2" color="text.secondary">
+                                  <Typography variant="caption" color="text.secondary">
                                     by {transport.provider}
                                   </Typography>
                                 </Box>
@@ -1254,27 +2195,27 @@ const generateMockItinerary = (days) => {
                               />
                             </Box>
                             
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.25 }}>
                               <Box>
-                                <Typography variant="body2" color="text.secondary">
+                                <Typography variant="caption" color="text.secondary">
                                   Departure
                                 </Typography>
-                                <Typography variant="body1" fontWeight="500">
+                                <Typography variant="body2" fontWeight="500">
                                   {transport.departure}
                                 </Typography>
                               </Box>
                               <Box sx={{ textAlign: 'right' }}>
-                                <Typography variant="body2" color="text.secondary">
+                                <Typography variant="caption" color="text.secondary">
                                   Arrival
                                 </Typography>
-                                <Typography variant="body1" fontWeight="500">
+                                <Typography variant="body2" fontWeight="500">
                                   {transport.arrival}
                                 </Typography>
                               </Box>
                             </Box>
 
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="body2" color="text.secondary" gutterBottom>
+                            <Box sx={{ mb: 1.25 }}>
+                              <Typography variant="caption" color="text.secondary" gutterBottom>
                                 Included Amenities
                               </Typography>
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -1284,9 +2225,9 @@ const generateMockItinerary = (days) => {
                               </Box>
                             </Box>
 
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 'auto' }}>
                               <Box>
-                                <Typography variant="h5" color="primary.main" fontWeight="bold">
+                                <Typography variant="subtitle1" color="primary.main" fontWeight="bold">
                                   {formatCurrency(convertCurrency(transport.price))}
                                 </Typography>
                                 {selectedCurrency !== 'INR' && (
@@ -1298,22 +2239,31 @@ const generateMockItinerary = (days) => {
                               <Button 
                                 variant="contained"
                                 onClick={() => handleTransportBooking(transport)}
+                                disabled={bookingLoading}
                                 sx={{
                                   backgroundColor: '#ff5a5f',
                                   '&:hover': { backgroundColor: '#e04e53' },
                                   borderRadius: '8px',
                                   textTransform: 'none',
-                                  fontWeight: 600
+                                  fontWeight: 600,
+                                  fontSize: '0.8rem',
+                                  px: 1.5,
+                                  py: 0.6,
+                                  '&:disabled': {
+                                    backgroundColor: '#ccc',
+                                    color: '#999'
+                                  }
                                 }}
                               >
-                                Book {transport.type}
+                                {bookingLoading ? 'Booking...' : isAuthenticated ? `Book ${transport.type}` : 'Login to Book'}
                               </Button>
                             </Box>
                           </CardContent>
                         </Card>
-                      </Grid>
-                    ))}
-                  </Grid>
+                      </Box>
+                      );
+                    })}
+                  </Box>
                 </TabPanel>
                 {/* Explore Tab */}
                 <TabPanel value={activeTab} index={2}>
@@ -1333,40 +2283,61 @@ const generateMockItinerary = (days) => {
                         🎯 Recommended Activities
                       </Typography>
                       <Grid container spacing={3}>
-                        {suggestions.explorationPlaces.map((place, index) => (
-                          <Grid item xs={12} md={4} key={index}>
+                        {suggestions.suggestedAttractions?.map((place, index) => (
+                          <Grid item xs={12} sm={6} md={4} lg={3} key={index}>
                             <Card 
                               sx={{ 
-                                borderRadius: '12px',
+                                borderRadius: '10px', 
+                                transition: 'all 0.2s ease', 
                                 border: '1px solid #ebebeb',
                                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
                                 '&:hover': { 
                                   transform: 'translateY(-2px)',
-                                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)'
+                                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+                                  borderColor: '#ff5a5f'
                                 },
-                                transition: 'all 0.2s ease'
+                                overflow: 'hidden',
+                                height: '260px',
+                                minWidth: '220px',
+                                maxWidth: '260px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                m: 'auto'
                               }}
                             >
-                              <CardContent>
-                                <Typography variant="h6" fontWeight="600" gutterBottom>
+                              <CardMedia
+                                component="img"
+                                height="110"
+                                image={getAttractionImage(place)}
+                                alt={place.name}
+                                sx={{ objectFit: 'cover', width: '100%' }}
+                                onError={(e) => {
+                                  if (e.currentTarget.src !== getAttractionFallbackImage()) {
+                                    e.currentTarget.src = getAttractionFallbackImage();
+                                  }
+                                }}
+                              />
+                              <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 1, width: '100%' }}>
+                                <Typography variant="subtitle2" fontWeight="600" sx={{ mb: 0.5 }} noWrap>
                                   {place.name}
                                 </Typography>
-                                <Chip 
-                                  label={place.type}
-                                  size="small"
-                                  color="primary"
-                                  variant="outlined"
-                                  sx={{ mb: 2 }}
-                                />
+                                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.75 }} noWrap>
+                                  {place.type || 'Attraction'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ mb: 1, flex: 1, overflow: 'hidden' }}>
+                                  {place.description || 'Recommended activity based on your interests.'}
+                                </Typography>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                    <Rating value={place.rating} precision={0.1} size="small" readOnly />
-                                    <Typography variant="body2" sx={{ ml: 1 }}>
-                                      {place.rating}
+                                    <Rating value={place.rating || 0} precision={0.1} size="small" readOnly />
+                                    <Typography variant="caption" sx={{ ml: 0.5 }}>
+                                      {place.rating || 'N/A'}
                                     </Typography>
                                   </Box>
-                                  <Typography variant="h6" color="primary.main" fontWeight="bold">
-                                    {formatCurrency(convertCurrency(place.price))}
+                                  <Typography variant="subtitle2" color="primary.main" fontWeight="bold">
+                                    {formatCurrency(convertCurrency(place.price || place.estimatedCost || 0))}
                                   </Typography>
                                 </Box>
                               </CardContent>
@@ -1425,20 +2396,13 @@ const generateMockItinerary = (days) => {
                             <CardMedia
                               component="img"
                               height="180"
-                              image={
-                                attraction.type?.toLowerCase().includes('beach') 
-                                  ? 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=300&q=80'
-                                  : attraction.type?.toLowerCase().includes('temple') || attraction.type?.toLowerCase().includes('historical')
-                                  ? 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4?w=300&q=80'
-                                  : attraction.type?.toLowerCase().includes('museum')
-                                  ? 'https://images.unsplash.com/photo-1555993539-1732b0258235?w=300&q=80'
-                                  : attraction.type?.toLowerCase().includes('natural') || attraction.type?.toLowerCase().includes('waterfall')
-                                  ? 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=300&q=80'
-                                  : attraction.name?.toLowerCase().includes('church')
-                                  ? 'https://images.unsplash.com/photo-1584464491033-06628f3a6b7b?w=300&q=80'
-                                  : 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4?w=300&q=80'
-                              }
+                              image={getAttractionImage(attraction)}
                               alt={attraction.name}
+                              onError={(e) => {
+                                if (e.currentTarget.src !== getAttractionFallbackImage()) {
+                                  e.currentTarget.src = getAttractionFallbackImage();
+                                }
+                              }}
                             />
                             <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
                               <IconButton 
@@ -1509,7 +2473,7 @@ const generateMockItinerary = (days) => {
                 <TabPanel value={activeTab} index={3}>
                   <Box>
                     <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
-                      Your {formData.durationDays}-Day Itinerary for {formData.toLocation}
+                      Your {tripDays}-Day Itinerary for {formData.toLocation}
                     </Typography>
                     
                     {/* Price Range Summary */}
@@ -1548,7 +2512,7 @@ const generateMockItinerary = (days) => {
                         </CardContent>
                       </Card>
                     )}
-                    {mockItinerary.slice(0, formData.durationDays).map((day, index) => (
+                    {mockItinerary.slice(0, tripDays).map((day, index) => (
                       <Card key={index} sx={{ mb: 3, borderRadius: 2 }}>
                         <CardContent>
                           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -1609,105 +2573,386 @@ const generateMockItinerary = (days) => {
             </Box>
           )}
 
-          {/* Booking Modal */}
-          {showBookingModal && (selectedHotel || selectedTransport) && (
-            <Paper 
-              sx={{ 
-                position: 'fixed',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                zIndex: 1300,
-                p: 4,
-                borderRadius: '12px',
-                minWidth: '400px',
-                maxWidth: '600px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+          {/* Comprehensive Hotel Booking Modal */}
+          {showBookingModal && selectedHotel && (
+            <Dialog 
+              open={showBookingModal}
+              onClose={() => setShowBookingModal(false)}
+              maxWidth="md"
+              fullWidth
+              PaperProps={{
+                sx: {
+                  borderRadius: '16px',
+                  maxHeight: '85vh'
+                }
               }}
             >
-              <Typography variant="h5" fontWeight="600" gutterBottom sx={{ color: '#ff5a5f' }}>
-                🎉 Booking Confirmation
-              </Typography>
+              <DialogTitle sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                backgroundColor: '#f8f9fa',
+                borderBottom: '1px solid #e9ecef'
+              }}>
+                <Typography variant="h5" fontWeight="600" sx={{ color: '#ff5a5f' }}>
+                  🏨 Book Your Stay
+                </Typography>
+                <IconButton 
+                  onClick={() => setShowBookingModal(false)}
+                  sx={{ color: '#6c757d' }}
+                >
+                  <Close />
+                </IconButton>
+              </DialogTitle>
               
-              {selectedHotel && (
-                <Box>
-                  <Typography variant="h6" gutterBottom>
-                    {selectedHotel.name}
+              <DialogContent sx={{ p: 3 }}>
+                {/* Hotel Overview */}
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                    <CardMedia
+                      component="img"
+                      sx={{ width: 120, height: 80, borderRadius: '8px', objectFit: 'cover' }}
+                      image={getHotelImage(selectedHotel)}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = getHotelFallbackImage(selectedHotel.category);
+                      }}
+                      alt={selectedHotel.name}
+                    />
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h6" fontWeight="600">
+                        {selectedHotel.name}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <LocationOn sx={{ fontSize: 16, color: '#6c757d' }} />
+                        <Typography variant="body2" color="text.secondary">
+                          {selectedHotel.location}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Rating value={selectedHotel.rating} readOnly size="small" />
+                        <Typography variant="body2" color="text.secondary">
+                          ({selectedHotel.rating})
+                        </Typography>
+                        <Chip 
+                          label={selectedHotel.category}
+                          size="small"
+                          sx={{ ml: 1, textTransform: 'capitalize' }}
+                        />
+                      </Box>
+                    </Box>
+                  </Box>
+                  
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    {selectedHotel.description}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    {formData.durationDays} nights • {selectedHotel.category}
+                  
+                  {/* Amenities */}
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" fontWeight="600" sx={{ mb: 1 }}>
+                      Amenities:
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {selectedHotel.amenities.map((amenity, i) => (
+                        <Chip 
+                          key={i}
+                          label={amenity.replace('_', ' ')}
+                          size="small"
+                          variant="outlined"
+                        />
+                      ))}
+                    </Box>
+                  </Box>
+                  
+                  {/* Hotel Policies */}
+                  <Box sx={{ display: 'flex', gap: 3, fontSize: '0.875rem', color: 'text.secondary' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <CheckCircle sx={{ fontSize: 16, color: 'success.main' }} />
+                      Check-in: {selectedHotel.checkInTime}
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <CheckCircle sx={{ fontSize: 16, color: 'success.main' }} />
+                      Check-out: {selectedHotel.checkOutTime}
+                    </Box>
+                    {selectedHotel.freeCancellation && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <CheckCircle sx={{ fontSize: 16, color: 'success.main' }} />
+                        Free cancellation
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+                
+                <Divider sx={{ my: 3 }} />
+                
+                {/* Booking Form */}
+                <Grid container spacing={3}>
+                  {/* Check-in & Check-out Dates */}
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Check-in Date"
+                      type="date"
+                      value={bookingDetails.checkInDate}
+                      onChange={(e) => setBookingDetails(prev => ({
+                        ...prev, 
+                        checkInDate: e.target.value
+                      }))}
+                      InputLabelProps={{ shrink: true }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <CalendarToday sx={{ fontSize: 20 }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Check-out Date"
+                      type="date"
+                      value={bookingDetails.checkOutDate}
+                      onChange={(e) => setBookingDetails(prev => ({
+                        ...prev, 
+                        checkOutDate: e.target.value
+                      }))}
+                      InputLabelProps={{ shrink: true }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <CalendarToday sx={{ fontSize: 20 }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                  
+                  {/* Guest Information */}
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Adults"
+                      type="number"
+                      value={bookingDetails.numberOfAdults}
+                      onChange={(e) => setBookingDetails(prev => ({
+                        ...prev, 
+                        numberOfAdults: parseInt(e.target.value) || 1,
+                        numberOfGuests: parseInt(e.target.value) + prev.numberOfChildren
+                      }))}
+                      inputProps={{ min: 1 }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Person sx={{ fontSize: 20 }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Children"
+                      type="number"
+                      value={bookingDetails.numberOfChildren}
+                      onChange={(e) => setBookingDetails(prev => ({
+                        ...prev, 
+                        numberOfChildren: parseInt(e.target.value) || 0,
+                        numberOfGuests: prev.numberOfAdults + parseInt(e.target.value)
+                      }))}
+                      inputProps={{ min: 0 }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Person sx={{ fontSize: 20 }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Total Guests"
+                      value={bookingDetails.numberOfGuests}
+                      InputProps={{ readOnly: true }}
+                      sx={{ backgroundColor: '#f8f9fa' }}
+                    />
+                  </Grid>
+                  
+                  {/* Contact Information */}
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      required
+                      label="Contact Name"
+                      value={bookingDetails.contactName}
+                      onChange={(e) => setBookingDetails(prev => ({
+                        ...prev, 
+                        contactName: e.target.value
+                      }))}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Person sx={{ fontSize: 20 }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      required
+                      label="Email Address"
+                      type="email"
+                      value={bookingDetails.contactEmail}
+                      onChange={(e) => setBookingDetails(prev => ({
+                        ...prev, 
+                        contactEmail: e.target.value
+                      }))}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Email sx={{ fontSize: 20 }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Phone Number"
+                      value={bookingDetails.contactPhone}
+                      onChange={(e) => setBookingDetails(prev => ({
+                        ...prev, 
+                        contactPhone: e.target.value
+                      }))}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Phone sx={{ fontSize: 20 }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                  
+                  {/* Special Requests */}
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={3}
+                      label="Special Requests (Optional)"
+                      placeholder="Any special requirements or preferences..."
+                      value={bookingDetails.specialRequests}
+                      onChange={(e) => setBookingDetails(prev => ({
+                        ...prev, 
+                        specialRequests: e.target.value
+                      }))}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start" sx={{ alignSelf: 'flex-start', mt: 1 }}>
+                            <Notes sx={{ fontSize: 20 }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+                
+                <Divider sx={{ my: 3 }} />
+                
+                {/* Price Breakdown */}
+                <Box sx={{ 
+                  backgroundColor: '#f8f9fa', 
+                  p: 2, 
+                  borderRadius: '8px',
+                  border: '1px solid #e9ecef'
+                }}>
+                  <Typography variant="h6" fontWeight="600" gutterBottom>
+                    💰 Price Breakdown
                   </Typography>
-                  <Typography variant="h6" color="primary.main" fontWeight="bold" sx={{ mb: 2 }}>
-                    Total: {formatCurrency(convertCurrency(selectedHotel.pricePerNight * formData.durationDays))}
+                  
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2">
+                      {formatCurrency(convertCurrency(selectedHotel.pricePerNight))} × {calculateNights()} nights
+                    </Typography>
+                    <Typography variant="body2">
+                      {formatCurrency(convertCurrency(calculateBookingCost()))}
+                    </Typography>
+                  </Box>
+                  
+                  {selectedHotel.breakfastIncluded && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2" color="success.main">
+                        ✓ Breakfast included
+                      </Typography>
+                      <Typography variant="body2" color="success.main">
+                        Complimentary
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  {selectedHotel.freeWifi && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2" color="success.main">
+                        ✓ Free Wi-Fi
+                      </Typography>
+                      <Typography variant="body2" color="success.main">
+                        Complimentary
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  <Divider sx={{ my: 1 }} />
+                  
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="h6" fontWeight="600">
+                      Total Amount
+                    </Typography>
+                    <Typography variant="h6" fontWeight="600" sx={{ color: '#ff5a5f' }}>
+                      {formatCurrency(convertCurrency(calculateBookingCost()))}
+                    </Typography>
+                  </Box>
+                  
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    * Prices are in {selectedCurrency}. Taxes and fees may apply.
                   </Typography>
                 </Box>
-              )}
+              </DialogContent>
               
-              {selectedTransport && (
-                <Box>
-                  <Typography variant="h6" gutterBottom>
-                    {selectedTransport.type} by {selectedTransport.provider}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    {formData.fromLocation} to {formData.toLocation} • {selectedTransport.duration}
-                  </Typography>
-                  <Typography variant="h6" color="primary.main" fontWeight="bold" sx={{ mb: 2 }}>
-                    Price: {formatCurrency(convertCurrency(selectedTransport.price))}
-                  </Typography>
-                </Box>
-              )}
-              
-              <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
+              <DialogActions sx={{ p: 3, backgroundColor: '#f8f9fa' }}>
                 <Button 
                   variant="outlined"
-                  onClick={() => {
-                    setShowBookingModal(false);
-                    setSelectedHotel(null);
-                    setSelectedTransport(null);
-                  }}
-                  sx={{ flex: 1 }}
+                  onClick={() => setShowBookingModal(false)}
+                  sx={{ minWidth: 120 }}
                 >
                   Cancel
                 </Button>
                 <Button 
                   variant="contained"
-                  onClick={() => {
-                    // Handle actual booking logic here
-                    alert('Booking confirmed! Redirecting to payment...');
-                    setShowBookingModal(false);
-                    setSelectedHotel(null);
-                    setSelectedTransport(null);
-                  }}
+                  onClick={executeHotelBooking}
+                  disabled={bookingLoading || !bookingDetails.contactName || !bookingDetails.contactEmail}
                   sx={{ 
-                    flex: 1,
+                    minWidth: 120,
                     backgroundColor: '#ff5a5f',
                     '&:hover': { backgroundColor: '#e04e53' }
                   }}
                 >
-                  Confirm Booking
+                  {bookingLoading ? 'Processing...' : `Book Now - ${formatCurrency(convertCurrency(calculateBookingCost()))}`}
                 </Button>
-              </Box>
-            </Paper>
-          )}
-          
-          {/* Modal Backdrop */}
-          {showBookingModal && (
-            <Box 
-              sx={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                zIndex: 1200
-              }}
-              onClick={() => {
-                setShowBookingModal(false);
-                setSelectedHotel(null);
-                setSelectedTransport(null);
-              }}
-            />
+              </DialogActions>
+            </Dialog>
           )}
 
           {!suggestions && !loading && (

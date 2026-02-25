@@ -67,9 +67,45 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Login error:', error);
       console.error('Error response:', error.response);
+      
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        // Handle new backend error format
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          // Handle different error types
+          switch (errorData.error) {
+            case 'INVALID_CREDENTIALS':
+              errorMessage = 'Invalid email or password. Please check your credentials.';
+              break;
+            case 'USER_NOT_FOUND':
+              errorMessage = 'No account found with this email. Please register first.';
+              break;
+            case 'ACCOUNT_NOT_VERIFIED':
+              errorMessage = 'Please verify your email address before logging in.';
+              break;
+            case 'ACCOUNT_DISABLED':
+              errorMessage = 'Your account has been disabled. Contact support for help.';
+              break;
+            default:
+              errorMessage = errorData.error;
+          }
+        }
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Invalid email or password. Please check your credentials.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'No account found with this email address.';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+      
       return { 
         success: false, 
-        error: error.response?.data?.message || 'Login failed' 
+        error: errorMessage
       };
     }
   };
@@ -87,9 +123,49 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Registration error:', error);
       console.error('Error response:', error.response);
+      
+      let errorMessage = 'Registration failed. Please try again.';
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        // Handle new backend error format
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          // Handle different error types
+          switch (errorData.error) {
+            case 'EMAIL_ALREADY_EXISTS':
+              errorMessage = 'An account with this email already exists. Please try logging in instead.';
+              break;
+            case 'VALIDATION_ERROR':
+              if (errorData.fieldErrors) {
+                const fieldErrors = Object.entries(errorData.fieldErrors)
+                  .map(([field, message]) => `${field}: ${message}`)
+                  .join(', ');
+                errorMessage = `Please fix the following: ${fieldErrors}`;
+              } else {
+                errorMessage = 'Please check your input and try again.';
+              }
+              break;
+            case 'INVALID_ARGUMENT':
+              errorMessage = 'Invalid registration data provided.';
+              break;
+            default:
+              errorMessage = errorData.error;
+          }
+        }
+      } else if (error.response?.status === 409) {
+        errorMessage = 'An account with this email already exists. Please try logging in instead.';
+      } else if (error.response?.status === 400) {
+        errorMessage = 'Please check your input and try again.';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+      
       return { 
         success: false, 
-        error: error.response?.data?.message || error.response?.data?.error || 'Registration failed' 
+        error: errorMessage
       };
     }
   };

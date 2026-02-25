@@ -44,6 +44,7 @@ public class Destination {
     @Column(columnDefinition = "TEXT")
     private String description;
     
+    @Column(name = "image_url", length = 1000)
     private String imageUrl;
     
     @Column(name = "time_zone")

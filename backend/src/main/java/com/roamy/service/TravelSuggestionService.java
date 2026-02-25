@@ -19,6 +19,7 @@ public class TravelSuggestionService {
     
     private final DestinationRepository destinationRepository;
     private final AttractionRepository attractionRepository;
+    private final HotelRepository hotelRepository;
     
     @SuppressWarnings("unused") // Will be used in future search functionality
     private final SearchService searchService;
@@ -102,35 +103,64 @@ public class TravelSuggestionService {
     
     private Destination findDestination(String locationName) {
         try {
-            // First try exact match
+            log.info("Searching for destination: {}", locationName);
+            
+            // First try exact match (case insensitive)
             Optional<Destination> existing = destinationRepository.findByNameIgnoreCase(locationName);
             if (existing.isPresent()) {
-                return existing.get();
+                Destination dest = existing.get();
+                log.info("Found exact match for destination: {} (ID: {})", dest.getName(), dest.getId());
+                return dest;
             }
             
             // Try partial match on city or country
             List<Destination> searchResults = destinationRepository.searchByNameCityOrCountry(locationName);
             if (!searchResults.isEmpty()) {
-                return searchResults.get(0); // Return first match
+                Destination dest = searchResults.get(0);
+                log.info("Found partial match for destination: {} -> {} (ID: {})", locationName, dest.getName(), dest.getId());
+                return dest; // Return first match
             }
             
-            // Only create new if none exists
-            return createNewDestination(locationName);
+            // Try case-sensitive exact name match as fallback
+            List<Destination> allDestinations = destinationRepository.findAll();
+            log.info("Total destinations in database: {}", allDestinations.size());
+            
+            for (Destination dest : allDestinations) {
+                if (dest.getName().equalsIgnoreCase(locationName) || 
+                    dest.getCity().equalsIgnoreCase(locationName)) {
+                    log.info("Found case-insensitive match: {} -> {} (ID: {})", locationName, dest.getName(), dest.getId());
+                    return dest;
+                }
+            }
+            
+            log.warn("No existing destination found for: {}, will return fallback", locationName);
+            // Return fallback destination instead of creating new one
+            return createMinimalDestination(locationName);
             
         } catch (Exception e) {
-            log.warn("Error finding/creating destination '{}': {}", locationName, e.getMessage());
+            log.warn("Error finding destination '{}': {}", locationName, e.getMessage());
             
             // Fallback: try to find any existing destination or return a default
             try {
                 List<Destination> allDestinations = destinationRepository.findByActiveTrue();
                 if (!allDestinations.isEmpty()) {
-                    return allDestinations.get(0); // Return first active destination as fallback
+                    // Try to find a destination that matches by name or city
+                    for (Destination dest : allDestinations) {
+                        if (dest.getName().toLowerCase().contains(locationName.toLowerCase()) ||
+                            dest.getCity().toLowerCase().contains(locationName.toLowerCase())) {
+                            log.info("Found fallback destination match: {} for search: {}", dest.getName(), locationName);
+                            return dest;
+                        }
+                    }
+                    // If no match found, return first active destination as fallback
+                    log.info("Using first active destination as fallback: {}", allDestinations.get(0).getName());
+                    return allDestinations.get(0);
                 }
             } catch (Exception fallbackEx) {
                 log.error("Fallback destination lookup failed", fallbackEx);
             }
             
-            // Last resort: create minimal destination without conflicting data
+            // Last resort: create minimal destination without saving to DB
             return createMinimalDestination(locationName);
         }
     }
@@ -299,28 +329,53 @@ public class TravelSuggestionService {
         
         List<Hotel> hotels = new ArrayList<>();
         
-        // Hotel repository functionality temporarily disabled
-        // Only query database if destination has a valid ID (was persisted)
-        // if (destination.getId() != null && destination.getId() > 0) {
-        //     try {
-        //         hotels = hotelRepository.findByDestinationAndAvailableTrue(destination);
-        //     } catch (Exception e) {
-        //         log.warn("Failed to load hotels from database for destination: {}", destination.getName());
-        //         hotels = new ArrayList<>();
-        //     }
-        // }
+        log.info("Looking up hotels for destination: {} (ID: {})", destination.getName(), destination.getId());
+        
+        // Query database for hotels by destination
+        if (destination.getId() != null && destination.getId() > 0) {
+            try {
+                // Try multiple methods to find hotels
+                hotels = hotelRepository.findByDestinationOrderByRatingAndPrice(destination.getId());
+                log.info("Found {} hotels using findByDestinationOrderByRatingAndPrice for destination: {}", hotels.size(), destination.getName());
+                
+                // If no results, try simpler query
+                if (hotels.isEmpty()) {
+                    hotels = hotelRepository.findByDestination_Id(destination.getId());
+                    log.info("Found {} hotels using findByDestination_Id for destination: {}", hotels.size(), destination.getName());
+                }
+                
+                // If still no results, try finding all hotels and filter by destination name
+                if (hotels.isEmpty()) {
+                    log.warn("No hotels found by destination ID, trying name-based search for: {}", destination.getName());
+                    List<Hotel> allHotels = hotelRepository.findAll();
+                    log.info("Total hotels in database: {}", allHotels.size());
+                    
+                    // Log some sample hotels for debugging
+                    if (!allHotels.isEmpty()) {
+                        log.info("Sample hotels: {}", allHotels.stream().limit(3)
+                            .map(h -> h.getName() + " (dest: " + (h.getDestination() != null ? h.getDestination().getName() : "null") + ")")
+                            .collect(Collectors.toList()));
+                    }
+                }
+                
+            } catch (Exception e) {
+                log.error("Failed to load hotels from database for destination: {} - Error: {}", destination.getName(), e.getMessage(), e);
+                hotels = new ArrayList<>();
+            }
+        } else {
+            log.warn("Invalid destination ID for {}: {}", destination.getName(), destination.getId());
+        }
         
         // Filter by budget and preferences
         String budgetLevel = request.getBudgetLevel() != null ? request.getBudgetLevel() : "mid-range";
         
         List<TravelSuggestionResponseDTO.SuggestedAccommodationDTO> suggestions = hotels.stream()
+                .filter(hotel -> hotel.getAvailable() != null ? hotel.getAvailable() : true) // Only available hotels
                 .map(hotel -> createAccommodationSuggestion(hotel, request, budgetLevel))
                 .collect(Collectors.toList());
         
-        // Always add sample accommodations if database results are empty or unavailable
-        if (suggestions.isEmpty()) {
-            suggestions = generateSampleAccommodations(destination, request);
-        }
+        log.info("Generated {} accommodation suggestions from {} hotels for destination: {}", 
+                suggestions.size(), hotels.size(), destination.getName());
         
         // Sort by priority score and budget compatibility
         return suggestions.stream()
@@ -343,6 +398,7 @@ public class TravelSuggestionService {
         policies.put("pets", "Pet policy varies by property");
         
         return TravelSuggestionResponseDTO.SuggestedAccommodationDTO.builder()
+                .id(hotel.getId()) // Include hotel ID for booking
                 .name(hotel.getName())
                 .type("Hotel")
                 .category(priceRange)
@@ -576,13 +632,9 @@ public class TravelSuggestionService {
     private List<TravelSuggestionResponseDTO.SuggestedAccommodationDTO> generateSampleAccommodations(
             Destination destination, TravelSuggestionRequestDTO request) {
         
-        List<TravelSuggestionResponseDTO.SuggestedAccommodationDTO> samples = new ArrayList<>();
-        
-        samples.add(createSampleAccommodation("Budget Hostel", "budget", destination.getName(), BigDecimal.valueOf(25)));
-        samples.add(createSampleAccommodation("Central Hotel", "mid-range", destination.getName(), BigDecimal.valueOf(75)));
-        samples.add(createSampleAccommodation("Luxury Resort", "luxury", destination.getName(), BigDecimal.valueOf(200)));
-        
-        return samples;
+        // Return empty list - we want to use only real database hotels
+        log.warn("generateSampleAccommodations called for {}, but we should use only database hotels", destination.getName());
+        return new ArrayList<>();
     }
     
     private TravelSuggestionResponseDTO.SuggestedAttractionDTO createSampleAttraction(
@@ -615,13 +667,14 @@ public class TravelSuggestionService {
     }
     
     private TravelSuggestionResponseDTO.SuggestedAccommodationDTO createSampleAccommodation(
-            String name, String category, String location, BigDecimal price) {
+            Long id, String name, String category, String location, BigDecimal price) {
         
         Map<String, String> policies = new HashMap<>();
         policies.put("checkIn", "3:00 PM");
         policies.put("checkOut", "11:00 AM");
         
         return TravelSuggestionResponseDTO.SuggestedAccommodationDTO.builder()
+                .id(id) // Include ID for booking
                 .name(name)
                 .type("Hotel")
                 .category(category)

@@ -6,7 +6,6 @@ import {
   Button,
   Typography,
   Box,
-  Alert,
   Link,
   Grid,
   CircularProgress,
@@ -19,6 +18,8 @@ import {
 import { Flight } from '@mui/icons-material';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { AuthError } from '../../components/ErrorDisplay';
+import ErrorDisplay from '../../components/ErrorDisplay';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -125,15 +126,18 @@ const Register = () => {
           </Typography>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
+            <AuthError 
+              error={error}
+              onClose={() => setError('')}
+            />
           )}
 
           {success && (
-            <Alert severity="success" sx={{ mb: 2 }}>
-              {success}
-            </Alert>
+            <ErrorDisplay 
+              success={success}
+              title="Registration Successful"
+              onClose={() => setSuccess('')}
+            />
           )}
 
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>

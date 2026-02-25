@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Container,
   Typography,
@@ -10,120 +10,93 @@ import {
   Chip,
   Button,
   Paper,
-  Tabs,
-  Tab,
   Rating,
   Skeleton,
   IconButton,
   Breadcrumbs,
-  Link
+  Link,
+  Alert
 } from '@mui/material';
 import {
   ArrowBack,
   Star,
-  Hotel,
-  AttractionsOutlined,
-  Schedule,
   Favorite,
   FavoriteBorder,
   Share,
   CalendarToday,
-  AccessTime
+  AccessTime,
+  LocationOn
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
-import { suggestionsAPI } from '../services/api';
+import { searchAPI } from '../services/api';
 import { useCurrency } from '../contexts/CurrencyContext';
 
 const DestinationDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { convertCurrency, formatCurrency } = useCurrency();
-  
+
   const [destination, setDestination] = useState(null);
-  const [suggestions, setSuggestions] = useState(null);
+  const [hotels, setHotels] = useState([]);
+  const [attractions, setAttractions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(0);
+  const [error, setError] = useState('');
   const [favorites, setFavorites] = useState(new Set());
 
-  // Helper functions for destination mapping (same as TravelSuggestions)
-  const getDestinationImage = (name) => {
-    const imageMap = {
-      'goa': 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=800&q=80',
-      'paris': 'https://images.unsplash.com/photo-1549144511-f099e773c147?w=800&q=80',
-      'tokyo': 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80',
-      'kerala': 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&q=80',
-      'rajasthan': 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4?w=800&q=80',
-      'kashmir': 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80',
-      'mumbai': 'https://images.unsplash.com/photo-1595658658481-d53d3f999875?w=800&q=80',
-      'delhi': 'https://images.unsplash.com/photo-1586297135537-94bc9ba060aa?w=800&q=80',
-      'new delhi': 'https://images.unsplash.com/photo-1586297135537-94bc9ba060aa?w=800&q=80',
-      'dubai': 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&q=80',
-      'london': 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=80',
-      'new york': 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&q=80'
-    };
-    return imageMap[name?.toLowerCase()] || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80';
-  };
+  const getFallbackImage = () =>
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80';
 
-  const getDestinationDescription = (name) => {
-    const descriptionMap = {
-      'goa': 'Famous for its pristine beaches, Portuguese colonial architecture, vibrant nightlife, and water sports. A perfect blend of relaxation and adventure.',
-      'paris': 'The City of Light captivates with iconic landmarks, world-class museums, romantic Seine cruises, and exquisite cuisine.',
-      'tokyo': 'A fascinating metropolis where ancient traditions meet cutting-edge technology, offering incredible food, shopping, and cultural experiences.',
-      'kerala': 'Gods Own Country enchants with serene backwaters, lush hill stations, spice plantations, and Ayurvedic wellness retreats.',
-      'rajasthan': 'Land of maharajas featuring majestic palaces, desert safaris, colorful festivals, and rich cultural heritage.',
-      'kashmir': 'Paradise on Earth with snow-capped mountains, pristine valleys, beautiful lakes, and charming houseboats.',
-      'mumbai': 'Indias financial capital and Bollywood hub, offering diverse culture, street food, colonial architecture, and vibrant nightlife.',
-      'delhi': 'Historic capital city blending Mughal heritage with modern India, featuring monuments, markets, and diverse culinary scene.',
-      'dubai': 'Ultra-modern city known for luxury shopping, futuristic architecture, desert adventures, and world-class hospitality.',
-      'london': 'Historic capital combining royal heritage, world-class museums, theater district, and multicultural neighborhoods.'
-    };
-    return descriptionMap[name?.toLowerCase()] || 'Discover this amazing destination with its unique attractions and experiences.';
-  };
+  const formatInterest = (interest) =>
+    (interest || '')
+      .toString()
+      .toLowerCase()
+      .split('_')
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
 
   useEffect(() => {
     const loadDestinationDetails = async () => {
       try {
         setLoading(true);
-        
-        // Create mock destination data based on ID
-        const mockDestination = {
-          id: id,
-          name: id.charAt(0).toUpperCase() + id.slice(1),
-          country: 'India',
-          description: getDestinationDescription(id),
-          imageUrl: getDestinationImage(id),
-          rating: 4.5,
-          budgetRange: '₹2,000-5,000/day',
-          bestTimeToVisit: 'November to March',
-          highlights: ['Cultural Heritage', 'Adventure Activities', 'Local Cuisine', 'Shopping'],
-          tags: ['Popular', 'Family Friendly', 'Adventure']
-        };
-        
-        setDestination(mockDestination);
+        setError('');
 
-        // Load suggestions for this destination
-        try {
-          const suggestionsResponse = await suggestionsAPI.getComprehensiveSuggestions({
-            toLocation: mockDestination.name,
-            budgetLevel: 'mid-range',
-            durationDays: 7,
-            interests: ['CULTURE', 'FOOD', 'NATURE']
-          });
-          setSuggestions(suggestionsResponse.data);
-        } catch (suggestionsError) {
-          console.log('Suggestions API not available, using mock data');
+        const destinationId = Number(id);
+        if (Number.isNaN(destinationId)) {
+          setError('Invalid destination id.');
+          setDestination(null);
+          setHotels([]);
+          setAttractions([]);
+          return;
         }
-      } catch (error) {
-        console.error('Error loading destination details:', error);
-        setDestination({
-          id: id,
-          name: id.charAt(0).toUpperCase() + id.slice(1),
-          country: 'Unknown',
-          description: 'Beautiful destination with amazing experiences waiting to be explored.',
-          imageUrl: getDestinationImage(id),
-          rating: 4.0,
-          budgetRange: '₹2,000-4,000/day'
-        });
+
+        const destinationsResponse = await searchAPI.getAllDestinations();
+        const destinationData = (destinationsResponse.data || []).find(
+          (item) => Number(item.id) === destinationId
+        );
+
+        if (!destinationData) {
+          setError('Destination not found.');
+          setDestination(null);
+          setHotels([]);
+          setAttractions([]);
+          return;
+        }
+
+        setDestination(destinationData);
+
+        const [hotelsResponse, attractionsResponse] = await Promise.allSettled([
+          searchAPI.getHotelsByDestination(destinationId),
+          searchAPI.getAttractionsByDestination(destinationId)
+        ]);
+
+        setHotels(hotelsResponse.status === 'fulfilled' ? (hotelsResponse.value.data || []) : []);
+        setAttractions(attractionsResponse.status === 'fulfilled' ? (attractionsResponse.value.data || []) : []);
+      } catch (loadError) {
+        console.error('Error loading destination details:', loadError);
+        setError('Failed to load destination details. Please try again.');
+        setDestination(null);
+        setHotels([]);
+        setAttractions([]);
       } finally {
         setLoading(false);
       }
@@ -135,22 +108,16 @@ const DestinationDetails = () => {
   }, [id]);
 
   const toggleFavorite = (itemId) => {
-    setFavorites(prev => {
-      const newFavorites = new Set(prev);
-      if (newFavorites.has(itemId)) {
-        newFavorites.delete(itemId);
+    setFavorites((prev) => {
+      const updated = new Set(prev);
+      if (updated.has(itemId)) {
+        updated.delete(itemId);
       } else {
-        newFavorites.add(itemId);
+        updated.add(itemId);
       }
-      return newFavorites;
+      return updated;
     });
   };
-
-  const TabPanel = ({ children, value, index }) => (
-    <div hidden={value !== index}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
-    </div>
-  );
 
   if (loading) {
     return (
@@ -158,8 +125,8 @@ const DestinationDetails = () => {
         <Skeleton variant="rectangular" height={300} sx={{ mb: 4, borderRadius: 2 }} />
         <Skeleton variant="text" width="60%" height={40} sx={{ mb: 2 }} />
         <Skeleton variant="text" width="80%" height={60} sx={{ mb: 4 }} />
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} variant="rectangular" height={200} sx={{ mb: 2, borderRadius: 2 }} />
+        {[...Array(3)].map((_, index) => (
+          <Skeleton key={index} variant="rectangular" height={150} sx={{ mb: 2, borderRadius: 2 }} />
         ))}
       </Container>
     );
@@ -169,11 +136,11 @@ const DestinationDetails = () => {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Typography variant="h4" color="error" textAlign="center">
-          Destination not found
+          {error || 'Destination not found'}
         </Typography>
         <Box textAlign="center" sx={{ mt: 2 }}>
-          <Button variant="contained" onClick={() => navigate('/')}>
-            Back to Home
+          <Button variant="contained" onClick={() => navigate('/search')}>
+            Back to Search
           </Button>
         </Box>
       </Container>
@@ -181,50 +148,50 @@ const DestinationDetails = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Breadcrumb Navigation */}
-      <Box sx={{ mb: 3 }}>
+    <Container maxWidth="lg" sx={{ py: { xs: 3, md: 4 } }}>
+      <Box sx={{ mb: 2.5 }}>
         <Breadcrumbs>
-          <Link color="inherit" onClick={() => navigate('/')} sx={{ cursor: 'pointer' }}>
+          <Link color="inherit" onClick={() => navigate('/')} sx={{ cursor: 'pointer', color: '#717171', textDecoration: 'none' }}>
             Home
           </Link>
-          <Link color="inherit" onClick={() => navigate('/search')} sx={{ cursor: 'pointer' }}>
+          <Link color="inherit" onClick={() => navigate('/search')} sx={{ cursor: 'pointer', color: '#717171', textDecoration: 'none' }}>
             Destinations
           </Link>
-          <Typography color="text.primary">{destination.name}</Typography>
+          <Typography color="text.primary" sx={{ fontWeight: 600 }}>{destination.name}</Typography>
         </Breadcrumbs>
       </Box>
 
-      {/* Back Button */}
-      <Button
-        startIcon={<ArrowBack />}
-        onClick={() => navigate(-1)}
-        sx={{ mb: 3 }}
-      >
+      <Button startIcon={<ArrowBack />} onClick={() => navigate(-1)} sx={{ mb: 2.5, color: '#484848', fontWeight: 600 }}>
         Back
       </Button>
 
-      {/* Hero Section */}
-      <Card sx={{ mb: 4, borderRadius: 3, overflow: 'hidden' }}>
+      <Card sx={{ mb: 4, borderRadius: 4, overflow: 'hidden', border: '1px solid #ebebeb', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}>
         <Box sx={{ position: 'relative' }}>
           <CardMedia
             component="img"
-            height="400"
-            image={destination.imageUrl}
+            height="360"
+            image={destination.imageUrl || getFallbackImage()}
             alt={destination.name}
+            sx={{ objectFit: 'contain', backgroundColor: '#f5f5f5' }}
+            onError={(event) => {
+              if (event.currentTarget.src !== getFallbackImage()) {
+                event.currentTarget.src = getFallbackImage();
+              }
+            }}
           />
-          <Box sx={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0,
-            background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.7) 100%)'
-          }} />
-          
-          {/* Action Buttons */}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.7) 100%)'
+            }}
+          />
+
           <Box sx={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 1 }}>
-            <IconButton 
+            <IconButton
               sx={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
               onClick={() => toggleFavorite('destination')}
             >
@@ -235,97 +202,216 @@ const DestinationDetails = () => {
             </IconButton>
           </Box>
 
-          {/* Title Overlay */}
-          <Box sx={{ 
-            position: 'absolute', 
-            bottom: 24, 
-            left: 24, 
-            right: 24,
-            color: 'white'
-          }}>
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 24,
+              left: 24,
+              right: 24,
+              color: 'white'
+            }}
+          >
             <Typography variant="h3" fontWeight="bold" gutterBottom>
               {destination.name}
-              {destination.country && `, ${destination.country}`}
             </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Star sx={{ color: 'warning.main', mr: 0.5 }} />
-                <Typography variant="h6">{destination.rating}</Typography>
+                <Typography variant="h6">{destination.averageRating || 'N/A'}</Typography>
               </Box>
-              <Chip 
-                label={destination.budgetRange} 
-                sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }} 
-              />
+              {destination.country && (
+                <Chip label={destination.country} sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }} />
+              )}
             </Box>
           </Box>
         </Box>
       </Card>
 
-      {/* Quick Info */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 3, borderRadius: 2 }}>
-            <Typography variant="h5" gutterBottom fontWeight="600">
+      {error && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
+      <Grid container spacing={3} sx={{ mb: 3.5 }}>
+        <Grid item xs={12}>
+          <Paper
+            sx={{
+              p: { xs: 2.5, md: 3.5 },
+              borderRadius: '16px',
+              border: '1px solid #ebebeb',
+              boxShadow: '0 2px 14px rgba(0,0,0,0.06)',
+              backgroundColor: '#ffffff'
+            }}
+          >
+            <Typography variant="h5" gutterBottom fontWeight="700" sx={{ color: '#222222', mb: 1.5 }}>
               About {destination.name}
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.8, mb: 3 }}>
-              {destination.description}
+            <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.75, mb: 3, fontSize: '15px' }}>
+              {destination.description || `Explore ${destination.name} and discover local highlights and experiences.`}
             </Typography>
-            
-            {destination.highlights && (
+
+            {destination.popularInterests?.length > 0 && (
               <Box>
                 <Typography variant="h6" gutterBottom fontWeight="600">
-                  Highlights
+                  Popular Interests
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {destination.highlights.map((highlight, index) => (
-                    <Chip key={index} label={highlight} variant="outlined" />
+                  {destination.popularInterests.map((interest, index) => (
+                    <Chip
+                      key={index}
+                      label={formatInterest(interest)}
+                      variant="outlined"
+                      sx={{
+                        borderRadius: '999px',
+                        borderColor: '#dddddd',
+                        fontWeight: 500,
+                        backgroundColor: '#ffffff'
+                      }}
+                    />
                   ))}
                 </Box>
               </Box>
             )}
           </Paper>
         </Grid>
-        
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, borderRadius: 2 }}>
-            <Typography variant="h6" gutterBottom fontWeight="600">
-              Travel Information
+
+        <Grid item xs={12}>
+          <Paper
+            sx={{
+              p: { xs: 2.5, md: 3.5 },
+              borderRadius: '16px',
+              border: '1px solid #ebebeb',
+              boxShadow: '0 2px 14px rgba(0,0,0,0.06)',
+              backgroundColor: '#ffffff'
+            }}
+          >
+            <Typography variant="h6" gutterBottom fontWeight="700" sx={{ color: '#222222', mb: 2 }}>
+              Destination Details
             </Typography>
-            
-            {destination.bestTimeToVisit && (
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <CalendarToday sx={{ mr: 1, color: 'primary.main' }} />
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Best Time to Visit
+
+            <Grid container spacing={1.5} sx={{ mb: 2 }}>
+              {(destination.city || destination.country) && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <Box sx={{ p: 1.5, borderRadius: '12px', border: '1px solid #f0f0f0', backgroundColor: '#fff', height: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                      <LocationOn sx={{ mr: 0.75, color: 'primary.main', fontSize: 18 }} />
+                      <Typography variant="caption" sx={{ color: '#717171', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Location
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ color: '#222222', fontWeight: 600 }}>
+                      {destination.city || destination.name}
+                      {destination.country ? `, ${destination.country}` : ''}
+                    </Typography>
+                  </Box>
+                </Grid>
+              )}
+
+              {destination.bestTimeToVisit && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <Box sx={{ p: 1.5, borderRadius: '12px', border: '1px solid #f0f0f0', backgroundColor: '#fff', height: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                      <CalendarToday sx={{ mr: 0.75, color: 'primary.main', fontSize: 16 }} />
+                      <Typography variant="caption" sx={{ color: '#717171', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Best Time
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ color: '#222222', fontWeight: 600 }}>
+                      {destination.bestTimeToVisit}
+                    </Typography>
+                  </Box>
+                </Grid>
+              )}
+
+              {destination.climate && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <Box sx={{ p: 1.5, borderRadius: '12px', border: '1px solid #f0f0f0', backgroundColor: '#fff', height: '100%' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                      <AccessTime sx={{ mr: 0.75, color: 'primary.main', fontSize: 16 }} />
+                      <Typography variant="caption" sx={{ color: '#717171', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Climate
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" sx={{ color: '#222222', fontWeight: 600 }}>
+                      {destination.climate}
+                    </Typography>
+                  </Box>
+                </Grid>
+              )}
+
+              {destination.timeZone && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <Box sx={{ p: 1.5, borderRadius: '12px', border: '1px solid #f0f0f0', backgroundColor: '#fff', height: '100%' }}>
+                    <Typography variant="caption" sx={{ color: '#717171', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', mb: 0.5 }}>
+                      Time Zone
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#222222', fontWeight: 600 }}>
+                      {destination.timeZone}
+                    </Typography>
+                  </Box>
+                </Grid>
+              )}
+
+              {!!destination.totalReviews && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <Box sx={{ p: 1.5, borderRadius: '12px', border: '1px solid #f0f0f0', backgroundColor: '#fff', height: '100%' }}>
+                    <Typography variant="caption" sx={{ color: '#717171', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', mb: 0.5 }}>
+                      Reviews
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#222222', fontWeight: 600 }}>
+                      {destination.totalReviews} total reviews
+                    </Typography>
+                  </Box>
+                </Grid>
+              )}
+
+              <Grid item xs={12} sm={6} md={4}>
+                <Box sx={{ p: 1.5, borderRadius: '12px', border: '1px solid #f0f0f0', backgroundColor: '#fff', height: '100%' }}>
+                  <Typography variant="caption" sx={{ color: '#717171', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', mb: 0.5 }}>
+                    Availability
                   </Typography>
-                  <Typography variant="body1">
-                    {destination.bestTimeToVisit}
+                  <Typography variant="body2" sx={{ color: '#222222', fontWeight: 600 }}>
+                    Attractions: {attractions.length}
                   </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+
+            {(destination.pricing?.budgetDailyCost || destination.pricing?.midRangeDailyCost || destination.pricing?.luxuryDailyCost) && (
+              <Box sx={{ mb: 2, p: 1.75, borderRadius: '12px', backgroundColor: '#f8f9fa', border: '1px solid #f0f0f0' }}>
+                <Typography variant="caption" sx={{ color: '#717171', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', mb: 0.75 }}>
+                  Daily Budget Estimates
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                  {!!destination.pricing?.budgetDailyCost && (
+                    <Typography variant="body2" sx={{ color: '#222222' }}>
+                      Budget: {formatCurrency(convertCurrency(destination.pricing.budgetDailyCost, destination.pricing.currency || 'USD'))}
+                    </Typography>
+                  )}
+                  {!!destination.pricing?.midRangeDailyCost && (
+                    <Typography variant="body2" sx={{ color: '#222222' }}>
+                      Mid-range: {formatCurrency(convertCurrency(destination.pricing.midRangeDailyCost, destination.pricing.currency || 'USD'))}
+                    </Typography>
+                  )}
+                  {!!destination.pricing?.luxuryDailyCost && (
+                    <Typography variant="body2" sx={{ color: '#222222' }}>
+                      Luxury: {formatCurrency(convertCurrency(destination.pricing.luxuryDailyCost, destination.pricing.currency || 'USD'))}
+                    </Typography>
+                  )}
                 </Box>
               </Box>
             )}
-            
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <AccessTime sx={{ mr: 1, color: 'primary.main' }} />
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Recommended Duration
-                </Typography>
-                <Typography variant="body1">
-                  5-7 days
-                </Typography>
-              </Box>
-            </Box>
 
             <Button
               fullWidth
               variant="contained"
               size="large"
-              onClick={() => navigate('/suggestions', { 
-                state: { destination: destination.name } 
-              })}
+              onClick={() =>
+                navigate('/suggestions', {
+                  state: { destination: destination.name }
+                })
+              }
               sx={{ mt: 2 }}
             >
               Plan Your Trip
@@ -334,157 +420,87 @@ const DestinationDetails = () => {
         </Grid>
       </Grid>
 
-      {/* Mock Activities Section if no suggestions */}
-      {!suggestions && (
-        <Paper sx={{ p: 4, borderRadius: 3 }}>
-          <Typography variant="h5" gutterBottom fontWeight="600">
-            Popular Activities in {destination.name}
+      <Paper
+        sx={{
+          p: { xs: 2.5, md: 3.5 },
+          borderRadius: '16px',
+          border: '1px solid #ebebeb',
+          boxShadow: '0 2px 14px rgba(0,0,0,0.06)',
+          backgroundColor: '#ffffff'
+        }}
+      >
+        <Typography variant="h6" gutterBottom fontWeight="700" sx={{ color: '#222222', mb: 2 }}>
+          Top Attractions
+        </Typography>
+        {attractions.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No attraction data available for this destination.
           </Typography>
-          <Grid container spacing={3}>
-            {['Sightseeing Tours', 'Food Tours', 'Adventure Sports', 'Cultural Experiences', 'Shopping Tours', 'Nightlife'].map((activity, index) => (
-              <Grid item xs={12} sm={6} md={4} key={index}>
-                <Card sx={{ p: 3, textAlign: 'center', borderRadius: 2, height: '100%' }}>
-                  <Typography variant="h6" gutterBottom>
-                    {activity}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Explore the best {activity.toLowerCase()} in {destination.name}
-                  </Typography>
-                  <Button variant="outlined" size="small">
-                    Learn More
-                  </Button>
+        ) : (
+          <Grid container spacing={2.5}>
+            {attractions.slice(0, 3).map((attraction) => {
+              const visibleAttractionCount = Math.min(attractions.length, 3);
+              const mdColumns = visibleAttractionCount === 1 ? 12 : visibleAttractionCount === 2 ? 6 : 4;
+
+              return (
+              <Grid item xs={12} sm={visibleAttractionCount === 1 ? 12 : 6} md={mdColumns} key={attraction.id || attraction.name}>
+                <Card
+                  sx={{
+                    borderRadius: 3,
+                    border: '1px solid #efefef',
+                    height: '100%',
+                    maxWidth: visibleAttractionCount === 1 ? 560 : '100%',
+                    mx: visibleAttractionCount === 1 ? 'auto' : 0,
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}
+                >
+                  <CardMedia
+                    component="img"
+                    height="180"
+                    image={attraction.imageUrls?.[0] || getFallbackImage()}
+                    alt={attraction.name}
+                    sx={{ objectFit: 'cover', backgroundColor: '#f5f5f5' }}
+                    onError={(event) => {
+                      if (event.currentTarget.src !== getFallbackImage()) {
+                        event.currentTarget.src = getFallbackImage();
+                      }
+                    }}
+                  />
+                  <CardContent sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                    <Typography variant="subtitle1" fontWeight="600" gutterBottom>
+                      {attraction.name}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{
+                        mb: 1,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        minHeight: '4.2em'
+                      }}
+                    >
+                      {attraction.description || 'Description not available'}
+                    </Typography>
+                    {attraction.type && <Chip size="small" label={attraction.type} sx={{ mb: 1, alignSelf: 'flex-start' }} />}
+                    {(attraction.entryFee || attraction.entryFee === 0) && (
+                      <Typography variant="body2" fontWeight="600" color="primary.main" sx={{ mt: 'auto' }}>
+                        {Number(attraction.entryFee) === 0
+                          ? 'Free Entry'
+                          : formatCurrency(convertCurrency(attraction.entryFee, attraction.currency || 'USD'))}
+                      </Typography>
+                    )}
+                  </CardContent>
                 </Card>
               </Grid>
-            ))}
+              );
+            })}
           </Grid>
-        </Paper>
-      )}
-
-      {/* Detailed Information Tabs - Only show if suggestions available */}
-      {suggestions && (
-        <Paper sx={{ borderRadius: 3, overflow: 'hidden' }}>
-          <Tabs 
-            value={activeTab} 
-            onChange={(e, newValue) => setActiveTab(newValue)}
-            sx={{ 
-              borderBottom: 1, 
-              borderColor: 'divider',
-              '& .MuiTab-root': { minHeight: 64, fontWeight: 600 }
-            }}
-          >
-            <Tab icon={<Hotel />} label="Hotels" />
-            <Tab icon={<AttractionsOutlined />} label="Attractions" />
-            <Tab icon={<Schedule />} label="Activities" />
-          </Tabs>
-
-          {/* Hotels Tab */}
-          <TabPanel value={activeTab} index={0}>
-            <Grid container spacing={3}>
-              {suggestions.suggestedAccommodations?.slice(0, 6).map((hotel, index) => (
-                <Grid item xs={12} md={6} key={index}>
-                  <Card sx={{ borderRadius: 2, height: '100%' }}>
-                    <CardMedia
-                      component="img"
-                      height="180"
-                      image={
-                        hotel.category === 'luxury' 
-                          ? 'https://images.unsplash.com/photo-1578774443271-39db861dd6d6?w=400&q=80'
-                          : hotel.category === 'mid-range'
-                          ? 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&q=80'
-                          : 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400&q=80'
-                      }
-                      alt={hotel.name}
-                    />
-                    <CardContent>
-                      <Typography variant="h6" fontWeight="600" gutterBottom>
-                        {hotel.name}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <Rating value={hotel.rating} precision={0.1} size="small" readOnly />
-                        <Typography variant="body2" sx={{ ml: 1 }}>
-                          {hotel.rating}
-                        </Typography>
-                      </Box>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        {hotel.type} • {hotel.category}
-                      </Typography>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
-                        <Typography variant="h6" color="primary.main" fontWeight="bold">
-                          {formatCurrency(convertCurrency(hotel.pricePerNight))}/night
-                        </Typography>
-                        <Button variant="outlined" size="small">
-                          View Details
-                        </Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </TabPanel>
-
-          {/* Attractions Tab */}
-          <TabPanel value={activeTab} index={1}>
-            <Grid container spacing={3}>
-              {suggestions.suggestedAttractions?.slice(0, 9).map((attraction, index) => (
-                <Grid item xs={12} md={4} key={index}>
-                  <Card sx={{ borderRadius: 2, height: '100%' }}>
-                    <CardMedia
-                      component="img"
-                      height="160"
-                      image={
-                        attraction.type?.toLowerCase().includes('beach') 
-                          ? 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=300&q=80'
-                          : attraction.type?.toLowerCase().includes('temple') || attraction.type?.toLowerCase().includes('historical')
-                          ? 'https://images.unsplash.com/photo-1578662996442-48f60b5e1fa4?w=300&q=80'
-                          : 'https://images.unsplash.com/photo-1555993539-1732b0258235?w=300&q=80'
-                      }
-                      alt={attraction.name}
-                    />
-                    <CardContent>
-                      <Typography variant="h6" fontWeight="600" gutterBottom>
-                        {attraction.name}
-                      </Typography>
-                      <Typography variant="body2" color="primary.main" fontWeight="500" gutterBottom>
-                        {attraction.type}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        {attraction.description}
-                      </Typography>
-                      {attraction.estimatedCost > 0 && (
-                        <Typography variant="body1" color="primary.main" fontWeight="bold">
-                          {formatCurrency(convertCurrency(attraction.estimatedCost))}
-                        </Typography>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </TabPanel>
-
-          {/* Activities Tab */}
-          <TabPanel value={activeTab} index={2}>
-            <Typography variant="h6" gutterBottom>
-              Popular Activities
-            </Typography>
-            <Grid container spacing={2}>
-              {['Sightseeing Tours', 'Food Tours', 'Adventure Sports', 'Cultural Experiences', 'Shopping Tours', 'Nightlife'].map((activity, index) => (
-                <Grid item xs={12} sm={6} md={4} key={index}>
-                  <Card sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
-                    <Typography variant="h6" gutterBottom>
-                      {activity}
-                    </Typography>
-                    <Button variant="outlined" size="small">
-                      Explore
-                    </Button>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </TabPanel>
-        </Paper>
-      )}
+        )}
+      </Paper>
     </Container>
   );
 };
