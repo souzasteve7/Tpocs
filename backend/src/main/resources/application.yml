@@ -1,0 +1,142 @@
+# Spring Boot Configuration for Roamy Application
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: roamy-backend
+    
+  # Database Configuration
+  datasource:
+    # H2 In-Memory Database for development
+    url: jdbc:h2:mem:roamy_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa  
+    password: 
+    
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+        
+  # Redis Configuration  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+      
+  # Cache Configuration
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000 # 10 minutes
+      
+  # Security
+  security:
+    jwt:
+      secret: mySecretKey12345678901234567890
+      expiration: 86400000 # 24 hours
+
+# External API Configuration (Free APIs)
+external:
+  apis:
+    # OpenWeather API (Free tier: 60 calls/minute, 1,000,000 calls/month)
+    weather:
+      base-url: https://api.openweathermap.org/data/2.5
+      api-key: ${OPENWEATHER_API_KEY:demo_key}
+      
+    # REST Countries API (Free, no auth required)
+    countries:
+      base-url: https://restcountries.com/v3.1
+      
+    # OpenStreetMap Nominatim (Free geocoding)
+    geocoding:
+      base-url: https://nominatim.openstreetmap.org
+      
+    # Free hotel API alternative (RapidAPI free tier)
+    hotels:
+      base-url: https://booking-com.p.rapidapi.com/v1
+      api-key: ${RAPIDAPI_KEY:demo_key}
+      host: booking-com.p.rapidapi.com
+      
+    # Free places API (Foursquare Places API has free tier)
+    places:
+      base-url: https://api.foursquare.com/v3/places
+      api-key: ${FOURSQUARE_API_KEY:demo_key}
+      
+    # Maps - We'll use OpenStreetMap tiles (completely free)
+    maps:
+      tile-server: https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+      
+    # Mock transport API (we'll create mock data)
+    transport:
+      mock-enabled: true
+
+# Logging
+logging:
+  level:
+    com.roamy: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Management and Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+---
+# Production profile
+spring:
+  config:
+    activate:
+      on-profile: prod
+      
+  datasource:
+    url: jdbc:mysql://localhost:3306/roamy_prod?useSSL=false&serverTimezone=UTC
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:roamy}
+    password: ${DB_PASSWORD:password}
+    
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    
+logging:
+  level:
+    com.roamy: INFO
+    org.springframework: WARN
+
+---
+# Test profile  
+spring:
+  config:
+    activate:
+      on-profile: test
+      
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: create-drop

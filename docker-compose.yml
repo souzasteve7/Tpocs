@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # Database
+  mysql:
+    image: mysql:8.0
+    container_name: roamy-mysql
+    environment:
+      MYSQL_DATABASE: roamy_db
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: roamy
+      MYSQL_PASSWORD: roamy123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/src/main/resources/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - roamy-network
+    restart: unless-stopped
+
+  # Backend Spring Boot Application
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: roamy-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/roamy_db
+      SPRING_DATASOURCE_USERNAME: roamy
+      SPRING_DATASOURCE_PASSWORD: roamy123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+    networks:
+      - roamy-network
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+    command: ["./mvnw", "spring-boot:run"]
+
+  # Frontend React Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: roamy-frontend
+    environment:
+      REACT_APP_API_BASE_URL: http://localhost:8080/api
+      REACT_APP_GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - roamy-network
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: ["npm", "start"]
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: roamy-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - roamy-network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+
+networks:
+  roamy-network:
+    driver: bridge
+
+# For development, you can also run services individually:
+# docker-compose up mysql redis  # Just the dependencies
+# Then run backend and frontend locally for faster development
